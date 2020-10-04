@@ -1,6 +1,7 @@
 from collections import defaultdict, Counter
 
 NUCLEOTIDES = ['A', 'T', 'C', 'G']
+COMPLIMENTS = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
 
 
 def count_nucleotides(strand):
@@ -32,14 +33,8 @@ def most_frequent_kmer(strand, k):
     return k_mers
 
 
-def get_complement(strand, reverse=False):
-    pairs = {
-        'A': 'T',
-        'T': 'A',
-        'G': 'C',
-        'C': 'G'
-    }
-    complement = ''.join(pairs[x] for x in strand)
+def get_complement(strand, reverse=True):
+    complement = ''.join(COMPLIMENTS[x] for x in strand)
     if reverse:
         complement = complement[::-1]
 
@@ -51,9 +46,12 @@ def pattern_matching(strand, pattern):
     start = 0
     while True:
         start = strand.find(pattern, start)
-        print(start)
         if start != -1:
             positions.append(start)
             start += 1
         else:
             return positions
+
+
+def transcription(strand):
+    return strand.replace('T', 'U')
