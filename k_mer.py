@@ -1,4 +1,19 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
+
+NUCLEOTIDES = ['A', 'T', 'C', 'G']
+
+
+def count_nucleotides(strand):
+    return dict(Counter(strand))
+
+
+def validate_strand(strand):
+    strand = strand.upper()
+    count = dict(Counter(strand))
+    for k in count.keys():
+        if k not in NUCLEOTIDES:
+            raise Exception("Invalid DNA sequence")
+    return True
 
 
 def most_frequent_kmer(strand, k):
