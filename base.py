@@ -117,3 +117,37 @@ def frequent_words_with_mismatch(strand, k, d):
 
     max_count = max(possible_k_mers.values())
     return [x for x, y in possible_k_mers.items() if y == max_count]
+
+
+def strand_score(strand, k_mer):
+    length = len(k_mer)
+    scores = []
+    for i in range(len(strand) - length + 1):
+        scores.append(hamming_distance(strand[i:i + length], k_mer))
+
+    return min(scores)
+
+
+def calculate_score(strands, k_mer):
+    final_score = 0
+    for strand in strands:
+        final_score += strand_score(strand, k_mer)
+
+    return final_score
+
+
+def motif_enumeration(strands, k, d):
+    patterns = []
+    candidate = strands[0]
+    for i in range(len(candidate) - k + 1):
+        splice = candidate[i:i + k]
+        neighbours = get_neighbors(splice, d)
+        print(neighbours)
+        for neighbour in neighbours:
+            for strand in strands[1:]:
+                if strand_score(strand, neighbour) > 1:
+                    break
+            else:
+                patterns.append(neighbour)
+
+    return set(patterns)
