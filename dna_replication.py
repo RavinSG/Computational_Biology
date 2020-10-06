@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import combinations, product
-from collections import defaultdict, Counter
+from collections import defaultdict
 
 NUCLEOTIDES = ['A', 'T', 'C', 'G']
 COMPLIMENTS = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
