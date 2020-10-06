@@ -160,6 +160,31 @@ def get_neighbors(k_mer: str, d: int) -> list:
     return mismatches
 
 
+def strand_score(strand, k_mer):
+    length = len(k_mer)
+    scores = []
+    for i in range(len(strand) - length + 1):
+        scores.append(hamming_distance(strand[i:i + length], k_mer))
+
+    return min(scores)
+
+
+def motif_enumeration(strands, k, d):
+    patterns = []
+    candidate = strands[0]
+    for i in range(len(candidate) - k + 1):
+        splice = candidate[i:i + k]
+        neighbours = get_neighbors(splice, d)
+        for neighbour in neighbours:
+            for strand in strands[1:]:
+                if strand_score(strand, neighbour) > d:
+                    break
+            else:
+                patterns.append(neighbour)
+
+    return list(set(patterns))
+
+
 def frequent_words_with_mismatch(strand: str, k: int, d: int) -> list:
     """
     Given a sequence find the k_mers that appear the most with at most d distance with the present k_mers in the
