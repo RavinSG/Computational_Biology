@@ -203,3 +203,23 @@ def find_clumps(genome: str, k: int, l: int, t: int):
             clumps.add(last_pattern)
 
     return clumps
+
+
+def hanoi_towers(n, start_peg, destination_peg):
+    if n == 1:
+        print(start_peg, destination_peg)
+    else:
+        transition_peg = 6 - start_peg - destination_peg
+        hanoi_towers(n - 1, start_peg, transition_peg)
+        print(start_peg, destination_peg)
+        hanoi_towers(n - 1, transition_peg, destination_peg)
+    return
+
+
+def corr(a, b):
+    score = 0
+    for i in range(len(b)):
+        if a[i:] == b[:-i]:
+            score += 1 / (2 ** i)
+
+    return score
