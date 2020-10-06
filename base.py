@@ -1,16 +1,24 @@
 import numpy as np
-from collections import defaultdict, Counter
 from itertools import combinations, product
+from collections import defaultdict, Counter
 
 NUCLEOTIDES = ['A', 'T', 'C', 'G']
 COMPLIMENTS = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
 
 
-def count_nucleotides(strand):
+def count_nucleotides(strand: str) -> dict:
+    """
+    Returns a dictionary containing the number of times each nucleotide is present in the strand.
+
+    :param strand: A sequence of nucleotides
+    """
     return dict(Counter(strand))
 
 
-def validate_strand(strand):
+def validate_strand(strand: str) -> bool:
+    """
+    Check the strand for invalid bases
+    """
     strand = strand.upper()
     count = dict(Counter(strand))
     for k in count.keys():
@@ -19,7 +27,14 @@ def validate_strand(strand):
     return True
 
 
-def most_frequent_kmer(strand, k):
+def most_frequent_kmer(strand: str, k: int) -> list:
+    """
+    Find the most common k-length sequences of nucleotides occurring in the strand.
+
+    :param strand: A sequence of nucleotides
+    :param k: Length of the k_mer
+    :return: A list of k_mers
+    """
     max_count = 0
     k_mers = []
     freq = defaultdict(int)
@@ -35,7 +50,14 @@ def most_frequent_kmer(strand, k):
     return k_mers
 
 
-def get_complement(strand, reverse=True):
+def get_complement(strand: str, reverse=True) -> str:
+    """
+    Return the reverse complement of the DNA sequence
+
+    :param strand: A sequence of nucleotides
+    :param reverse: True if the complement should be reversed
+    :return: The (reversed) complement of a DNA sequence
+    """
     complement = ''.join(COMPLIMENTS[x] for x in strand)
     if reverse:
         complement = complement[::-1]
@@ -43,7 +65,15 @@ def get_complement(strand, reverse=True):
     return complement
 
 
-def pattern_matching(strand, pattern):
+def pattern_matching(strand: str, pattern: str) -> list:
+    """
+    Given a strand and a pattern, returns the indices of the starting locations where the patter is present in the
+    strand.
+
+    :param strand: A sequence of nucleotides
+    :param pattern: The pattern to be searched in the strand
+    :return: A list of starting locations
+    """
     positions = []
     start = 0
     while True:
@@ -55,11 +85,17 @@ def pattern_matching(strand, pattern):
             return positions
 
 
-def transcription(strand):
+def transcription(strand: str) -> str:
+    """
+    Returns the RNA transcription of the DNA.
+    """
     return strand.replace('T', 'U')
 
 
-def hamming_distance(strand1, strand2):
+def hamming_distance(strand1: str, strand2: str) -> int:
+    """
+    Returns the hamming distance between the given two strands
+    """
     distance = 0
     for i in range(len(strand1)):
         if strand1[i] != strand2[i]:
@@ -68,7 +104,13 @@ def hamming_distance(strand1, strand2):
     return distance
 
 
-def skew_loc(strand, loc='min'):
+def skew_loc(strand: str, loc='min') -> int:
+    """
+    Finds the pivoting point of the G-C graph where the value stops decreasing and starts to increase.
+
+    :param strand: A sequence of nucleotides
+    :param loc: Which pivoting point is needed, ['min', 'max']
+    """
     bases = {'A': 0, 'T': 0, 'C': -1, 'G': 1}
     values = [0]
 
@@ -82,7 +124,16 @@ def skew_loc(strand, loc='min'):
         return np.where(values == values.max())[0]
 
 
-def approximate_pattern_count(strand, pattern, d):
+def approximate_pattern_count(strand: str, pattern: str, d: int) -> int:
+    """
+    Given a strand, a pattern, and a distance d, find the number of occurrences of the patter with a maximum hamming
+    distance of d.
+
+    :param strand: A sequence of nucleotides
+    :param pattern: The pattern to be searched in the strand
+    :param d: Maximum hamming distance
+    :return: The number of occurrences
+    """
     s_l = len(strand)
     p_l = len(pattern)
     count = 0
@@ -94,7 +145,14 @@ def approximate_pattern_count(strand, pattern, d):
     return count
 
 
-def get_neighbors(k_mer, d):
+def get_neighbors(k_mer: str, d: int) -> list:
+    """
+    Given a k_mer returns all the possible k_mers that are at most d distance from the original k_mer.
+
+    :param k_mer: A sequence of nucleotides
+    :param d: Maximum hamming distance
+    :return: All possible k_mers with hamming distance d
+    """
     mismatches = [k_mer]
     alt_bases = {'A': 'CGT', 'C': 'AGT', 'G': 'ACT', 'T': 'ACG'}
     for dist in range(1, d + 1):
@@ -107,7 +165,16 @@ def get_neighbors(k_mer, d):
     return mismatches
 
 
-def frequent_words_with_mismatch(strand, k, d):
+def frequent_words_with_mismatch(strand: str, k: int, d: int) -> list:
+    """
+    Given a sequence find the k_mers that appear the most with at most d distance with the present k_mers in the
+    sequence.
+
+    :param strand: A sequence of nucleotides
+    :param k: Length of the k_mer
+    :param d: Maximum hamming distance
+    :return: A list of the most occurring possible k_mer
+    """
     possible_k_mers = defaultdict(int)
     for i in range(len(strand) - k):
         splice = strand[i: i + k]
