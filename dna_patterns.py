@@ -1,10 +1,11 @@
 import numpy as np
 from collections import Counter
+
+from params import *
 from dna_replication import hamming_distance, number_to_pattern
 
 
 def generate_motif_profile(motifs):
-    profile_loc = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
     motifs = np.array([list(i) for i in motifs])
     profile = []
 
@@ -12,7 +13,7 @@ def generate_motif_profile(motifs):
         c = Counter(motifs[:, i])
         temp = [0] * 4
         for key, val in c.items():
-            temp[profile_loc[key]] = val
+            temp[STR_TO_NUM[key]] = val
         profile.append(temp)
 
     profile = np.array(profile).transpose()
@@ -20,9 +21,8 @@ def generate_motif_profile(motifs):
 
 
 def consensus(motifs):
-    mapping = {0: 'A', 1: 'C', 2: 'G', 3: 'T'}
     profile = generate_motif_profile(motifs)[0]
-    return "".join([mapping[x] for x in np.argmax(profile, axis=0)])
+    return "".join([NUM_TO_STR[x] for x in np.argmax(profile, axis=0)])
 
 
 def calculate_entropy(motif_profile):

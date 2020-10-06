@@ -1,9 +1,8 @@
 import numpy as np
-from itertools import combinations, product
 from collections import defaultdict
+from itertools import combinations, product
 
-NUCLEOTIDES = ['A', 'T', 'C', 'G']
-COMPLIMENTS = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
+from params import *
 
 
 def pattern_matching(strand: str, pattern: str) -> list:
@@ -73,20 +72,18 @@ def get_complement(strand: str, reverse=True) -> str:
 
 
 def pattern_to_number(pattern: str) -> int:
-    mapping = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
     nums = np.flip(np.array(range(len(pattern))))
-    values = np.array([mapping[x] for x in pattern])
+    values = np.array([STR_TO_NUM[x] for x in pattern])
 
     return sum(values * (4 ** nums))
 
 
 def number_to_pattern(number: int, k: int) -> str:
-    mapping = {0: 'A', 1: 'C', 2: 'G', 3: 'T'}
     pattern = ''
     while number > 3:
-        pattern = mapping[number % 4] + pattern
+        pattern = NUM_TO_STR[number % 4] + pattern
         number = number // 4
-    pattern = mapping[number % 4] + pattern
+    pattern = NUM_TO_STR[number % 4] + pattern
     pattern = 'A' * (k - len(pattern)) + pattern
 
     return pattern
@@ -99,11 +96,10 @@ def skew_loc(strand: str, loc='min') -> int:
     :param strand: A sequence of nucleotides
     :param loc: Which pivoting point is needed, ['min', 'max']
     """
-    bases = {'A': 0, 'T': 0, 'C': -1, 'G': 1}
     values = [0]
 
     for x, y in enumerate(strand):
-        values.append(values[x] + bases[y])
+        values.append(values[x] + GC_SCORE[y])
 
     values = np.array(values)
     if loc == 'min':
@@ -154,10 +150,9 @@ def get_neighbors(k_mer: str, d: int) -> list:
     :return: All possible k_mers with hamming distance d
     """
     mismatches = [k_mer]
-    alt_bases = {'A': 'CGT', 'C': 'AGT', 'G': 'ACT', 'T': 'ACG'}
     for dist in range(1, d + 1):
         for change_indices in combinations(range(len(k_mer)), dist):
-            for substitutions in product(*[alt_bases[k_mer[i]] for i in change_indices]):
+            for substitutions in product(*[SWAP_BASES[k_mer[i]] for i in change_indices]):
                 new_mismatch = list(k_mer)
                 for idx, sub in zip(change_indices, substitutions):
                     new_mismatch[idx] = sub
