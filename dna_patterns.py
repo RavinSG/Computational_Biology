@@ -1,23 +1,31 @@
 import numpy as np
-from collections import Counter
+import random
 
 from params import *
-from dna_replication import hamming_distance, number_to_pattern
+from dna_replication import number_to_pattern, strand_score
 
 
-def generate_motif_profile(motifs):
-    motifs = np.array([list(i) for i in motifs])
-    profile = []
+def generate_motif_profile(motifs, pseudo_count=False):
+    profile = {}
+    motif_count = len(motifs)
+    motif_len = len(motifs[0])
 
-    for i in range(motifs.shape[1]):
-        c = Counter(motifs[:, i])
-        temp = [0] * 4
-        for key, val in c.items():
-            temp[STR_TO_NUM[key]] = val
-        profile.append(temp)
+    for i in STR_TO_NUM.keys():
+        profile[i] = [0] * motif_len
 
-    profile = np.array(profile).transpose()
-    return [profile / len(motifs), sum(motifs.shape[0] - profile.max(axis=0))]
+    for motif in motifs:
+        for i, j in enumerate(motif):
+            profile[j][i] += 1
+    max_error = motif_count
+
+    profile = np.array([x for x in profile.values()])
+
+    if pseudo_count:
+        profile += 1
+        motif_count += 4
+        max_error += 1
+
+    return [profile / motif_count, sum(max_error - profile.max(axis=0))]
 
 
 def consensus(motifs):
@@ -30,15 +38,6 @@ def calculate_entropy(motif_profile):
     return entropy_values.sum()
 
 
-def strand_score(strand, k_mer):
-    length = len(k_mer)
-    scores = []
-    for i in range(len(strand) - length + 1):
-        scores.append(hamming_distance(strand[i:i + length], k_mer))
-
-    return [min(scores), np.argmin(scores)]
-
-
 def calculate_score(strands, k_mer):
     final_score = 0
     for strand in strands:
@@ -49,33 +48,33 @@ def calculate_score(strands, k_mer):
 
 def median_string(strands, k):
     d = np.inf
-    patterns = []
+    median_pattern = ''
     for i in range(4 ** k):
         pattern = number_to_pattern(i, k)
         score = calculate_score(strands, pattern)
         if d > score:
-            patterns.append(pattern)
+            median_pattern = pattern
             d = score
 
-    return patterns
+    return median_pattern
 
 
-def most_probable_k_mer(strand, k, profile):
+def most_probable_k_mer(strand: str, k: int, profile: np.ndarray):
     profile = np.array(profile)
-    probable_k_mer = strand[:k]
-    max_prob = 0
+    probabilities = []
+    indices = [STR_TO_NUM[x] for x in strand]
+
     for i in range(0, len(strand) - k + 1):
-        splice = strand[i:i + k]
-        indices = [STR_TO_NUM[x] for x in splice]
-        prob = np.prod(profile[[indices], range(len(indices))])
-        if prob > max_prob:
-            max_prob = prob
-            probable_k_mer = splice
+        indices_splice = indices[i:i + k]
+        prob = 1
+        for j in range(k):
+            prob = prob * profile[indices_splice[j]][j]
+        probabilities.append(prob)
+    max_loc = np.argmax(probabilities)
+    return strand[max_loc: max_loc + k]
 
-    return probable_k_mer
 
-
-def greedy_motif_search(strands, k, t):
+def greedy_motif_search(strands, k, t, pseudo_count=False):
     best_motifs = [x[:k] for x in strands]
     best_score = generate_motif_profile(best_motifs)[-1]
     strand_1 = strands[0]
@@ -83,7 +82,7 @@ def greedy_motif_search(strands, k, t):
         splice = strand_1[i:i + k]
         candidate_motifs = [splice]
         for strand in strands[1:]:
-            profile, _ = generate_motif_profile(candidate_motifs)
+            profile, _ = generate_motif_profile(candidate_motifs, pseudo_count)
             best_k_mer = most_probable_k_mer(strand, k, profile)
             candidate_motifs.append(best_k_mer)
         candidate_score = generate_motif_profile(candidate_motifs)[-1]
@@ -92,3 +91,24 @@ def greedy_motif_search(strands, k, t):
             best_motifs = candidate_motifs
 
     return best_motifs
+
+
+def randomized_motif_search(strands, k, t):
+    random_motifs = []
+    best_score = np.inf
+    best_motifs = []
+    len_dna = len(strands[0]) - k + 1
+    for strand in strands:
+        loc = random.randrange(0, len_dna)
+        random_motifs.append(strand[loc:loc + k])
+
+    profile = generate_motif_profile(random_motifs, True)[0]
+    while True:
+        random_motifs = [most_probable_k_mer(x, k, profile) for x in strands]
+        profile, score = generate_motif_profile(random_motifs, True)
+        if score < best_score:
+            best_score = score
+            best_motifs = random_motifs.copy()
+
+        else:
+            return best_motifs, best_score
