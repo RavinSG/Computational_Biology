@@ -166,7 +166,7 @@ def strand_score(strand, k_mer):
     for i in range(len(strand) - length + 1):
         scores.append(hamming_distance(strand[i:i + length], k_mer))
 
-    return min(scores)
+    return [min(scores), np.argmin(scores)]
 
 
 def motif_enumeration(strands, k, d):
@@ -177,7 +177,7 @@ def motif_enumeration(strands, k, d):
         neighbours = get_neighbors(splice, d)
         for neighbour in neighbours:
             for strand in strands[1:]:
-                if strand_score(strand, neighbour) > d:
+                if strand_score(strand, neighbour)[0] > d:
                     break
             else:
                 patterns.append(neighbour)
