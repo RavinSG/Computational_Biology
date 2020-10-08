@@ -61,17 +61,23 @@ def median_string(strands, k):
 
 def most_probable_k_mer(strand: str, k: int, profile: np.ndarray):
     profile = np.array(profile)
+    probabilities = calculate_k_mer_prob(strand, k, profile)
+    max_loc = np.argmax(probabilities)
+
+    return strand[max_loc: max_loc + k]
+
+
+def calculate_k_mer_prob(strand, k, profile):
     probabilities = []
     indices = [STR_TO_NUM[x] for x in strand]
-
     for i in range(0, len(strand) - k + 1):
         indices_splice = indices[i:i + k]
         prob = 1
         for j in range(k):
             prob = prob * profile[indices_splice[j]][j]
         probabilities.append(prob)
-    max_loc = np.argmax(probabilities)
-    return strand[max_loc: max_loc + k]
+
+    return np.array(probabilities)
 
 
 def greedy_motif_search(strands, k, t, pseudo_count=False):
@@ -112,3 +118,35 @@ def randomized_motif_search(strands, k, t):
 
         else:
             return best_motifs, best_score
+
+
+def gibbs_sampler(strands, k, t, n):
+    final_score = np.inf
+    final_motifs = []
+    for _ in range(50):
+        motifs = []
+        len_dna = len(strands[0]) - k + 1
+        for strand in strands:
+            loc = random.randrange(0, len_dna)
+            motifs.append(strand[loc:loc + k])
+        best_score = np.inf
+        best_motifs = motifs.copy()
+        for i in range(n):
+            j = random.randint(0, t - 1)
+            profile = generate_motif_profile(motifs[:j] + motifs[j + 1:], True)[0]
+            probabilities = calculate_k_mer_prob(strands[j], k, profile)
+            probabilities = probabilities / probabilities.sum()
+            motif_loc = np.random.choice(range(len_dna), p=probabilities)
+            motifs[j] = strands[j][motif_loc:motif_loc + k]
+            score = generate_motif_profile(motifs)[-1]
+
+            if score < best_score:
+                best_score = score
+                best_motifs = motifs.copy()
+
+        if best_score < final_score:
+            print(best_score, " ".join(best_motifs))
+            final_score = best_score
+            final_motifs = best_motifs.copy()
+
+    return final_motifs
