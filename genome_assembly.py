@@ -1,5 +1,6 @@
-from itertools import product
+from itertools import permutations, product
 from collections import defaultdict
+from copy import deepcopy
 
 
 def composition(strand, k):
@@ -50,17 +51,25 @@ def generate_node_dict(adjacency_list):
     return node_dict
 
 
+def calculate_edges(node_dict):
+    in_edges = defaultdict(int)
+    out_edges = defaultdict(int)
+
+    for s_node, nodes in node_dict.items():
+        out_edges[s_node] = len(nodes)
+        for node in nodes:
+            in_edges[node] += 1
+
+    return in_edges, out_edges
+
+
 def unbalanced_nodes(adjacency_list, dict_form=False):
     if not dict_form:
         node_dict = generate_node_dict(adjacency_list)
     else:
         node_dict = adjacency_list
 
-    in_edges = defaultdict(int)
-
-    for nodes in node_dict.values():
-        for node in nodes:
-            in_edges[node] += 1
+    in_edges, _ = calculate_edges(node_dict)
 
     total_nodes = set(list(node_dict.keys()) + list(in_edges.keys()))
     missing_edge = [None, None]
@@ -154,7 +163,7 @@ def string_spelled_by_gapped_patterns(gapped_patterns, k, d):
         suffix.append(string[1])
     prefix = simple_string_assembly(prefix)
     suffix = simple_string_assembly(suffix)
-
+    print(prefix)
     str_len = len(gapped_patterns) + 2 * k + d - 1
     print(str_len, k + d, len(prefix))
     for i in range(k + d, len(prefix)):
@@ -171,15 +180,73 @@ def read_pair_string_construction(reads, k, d):
         node_dict[edge[0][:-1] + "-" + edge[1][:-1]].append(edge[0][1:] + "-" + edge[1][1:])
 
     node_dict, missing_edge = unbalanced_nodes(node_dict, True)
-    string = generate_eulerian_path(node_dict, missing_edge)
-    prefix = []
-    suffix = []
-    for i in string:
-        splices = i.split('-')
-        prefix.append(splices[0])
-        suffix.append(splices[1])
+    split_points = {x: len(y) for x, y in node_dict.items() if len(y) > 1}
+    for i in split_points:
+        split_points[i] = list(permutations(node_dict[i]))
 
-    prefix = simple_string_assembly(prefix)
-    suffix = simple_string_assembly(suffix)
+    all_paths = list(set(product(*list(split_points.values()))))
 
-    return prefix + suffix[-(k + d):]
+    # It would be much efficient to traceback and create select a new path, but too bored to do it.
+    while all_paths:
+        cur_path = all_paths.pop()
+        temp_dict = deepcopy(node_dict)
+        for i, j in enumerate(split_points.keys()):
+            temp_dict[j] = list(cur_path[i])
+        string = generate_eulerian_path(temp_dict, missing_edge)
+        prefix = []
+        suffix = []
+        for i in string:
+            splices = i.split('-')
+            prefix.append(splices[0])
+            suffix.append(splices[1])
+
+        prefix = simple_string_assembly(prefix)
+        suffix = simple_string_assembly(suffix)
+        for i in range(k + d, len(prefix)):
+            if prefix[i] != suffix[i - k - d]:
+                print("Not Found")
+                break
+        else:
+            return prefix + suffix[-(k + d):]
+
+
+def maximum_non_branching_paths(nodes):
+    in_edges, out_edges = calculate_edges(nodes)
+    one_in_out_nodes = defaultdict(bool)
+
+    for node in nodes.keys():
+        one_in_out_nodes[node] = True if (in_edges[node] * out_edges[node] == 1) else False
+    for i in nodes.keys():
+        if i not in one_in_out_nodes.keys():
+            print(i, "*" * 100)
+    added_nodes = set()
+    non_branching_paths = []
+    items = list(zip(*nodes.items()))
+
+    for node, paths in zip(items[0], items[1]):
+        if not one_in_out_nodes[node]:
+            for path in paths:
+                non_branching_path = [node, path]
+                added_nodes.update(non_branching_path)
+                while True:
+                    if len(nodes[path]) > 0 and one_in_out_nodes[path]:
+                        path = nodes[path][0]
+                        non_branching_path.append(path)
+                        added_nodes.add(path)
+                    else:
+                        non_branching_paths.append(non_branching_path)
+                        break
+
+    for s_node, check in one_in_out_nodes.items():
+        if check and (s_node not in added_nodes):
+            path = nodes[s_node][0]
+            non_branching_path = [s_node, path]
+            added_nodes.update([s_node, path])
+            while s_node != path:
+                path = nodes[path][0]
+                added_nodes.add(path)
+                non_branching_path.append(path)
+            non_branching_paths.append(non_branching_path)
+
+    # return non_branching_paths
+    return [simple_string_assembly(i) for i in non_branching_paths]
