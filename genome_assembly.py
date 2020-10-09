@@ -1,3 +1,4 @@
+from itertools import product
 from collections import defaultdict
 
 
@@ -34,8 +35,7 @@ def de_bruijn_graph(strand, k):
     for k_mer in k_mers:
         nodes[k_mer[:-1]].append(k_mer[1:])
 
-    for i, j in nodes.items():
-        print(i, "->", ",".join(j))
+    return nodes
 
 
 def generate_node_dict(adjacency_list):
@@ -43,15 +43,19 @@ def generate_node_dict(adjacency_list):
     total_edges = 1
     for i in adjacency_list:
         nodes = i.split(" -> ")
-        dst_nodes = list(map(int, nodes[1].split(',')))
+        dst_nodes = list(map(str, nodes[1].split(',')))
         total_edges += len(dst_nodes)
-        node_dict[int(nodes[0])] = dst_nodes
+        node_dict[nodes[0]] = dst_nodes
 
-    return node_dict, total_edges
+    return node_dict
 
 
-def unbalanced_nodes(adjacency_list):
-    node_dict, total_edges = generate_node_dict(adjacency_list)
+def unbalanced_nodes(adjacency_list, debruijn=False):
+    if not debruijn:
+        node_dict = generate_node_dict(adjacency_list)
+    else:
+        node_dict = adjacency_list
+
     in_edges = defaultdict(int)
 
     for nodes in node_dict.values():
@@ -70,34 +74,61 @@ def unbalanced_nodes(adjacency_list):
             missing_edge[0] = node[0]
 
     node_dict[missing_edge[0]].append(missing_edge[1])
-    return node_dict, total_edges + 1, missing_edge
+    return node_dict, missing_edge
 
 
-def generate_eulerian_cycle(adjacency_list, eulerian_path=False):
-    if eulerian_path:
-        node_dict, total_edges, extra_edge = unbalanced_nodes(adjacency_list)
-    else:
-        node_dict, total_edges = generate_node_dict(adjacency_list)
-
-    eulerian_cycle = []
+def generate_eulerian_walk(node_dict):
+    walk = []
     next_node = list(node_dict)[0]
-
     while True:
         try:
-            eulerian_cycle.append(next_node)
+            walk.append(next_node)
             next_node = node_dict[next_node].pop()
 
         except IndexError:
-            for i, j in enumerate(eulerian_cycle):
+            for i, j in enumerate(walk):
                 if node_dict[j]:
-                    eulerian_cycle = eulerian_cycle[i:] + eulerian_cycle[1:i]
+                    walk = walk[i:] + walk[1:i]
                     next_node = j
                     break
-            else:
-                if eulerian_path:
-                    break_point = [x for x, y in enumerate(eulerian_cycle) if
-                                   (y == extra_edge[0] and eulerian_cycle[x + 1] == extra_edge[1])][0]
-                    eulerian_cycle = eulerian_cycle[break_point + 1:-1] + eulerian_cycle[:break_point + 1]
-                    return eulerian_cycle
                 else:
-                    return eulerian_cycle
+                    return walk
+
+
+def generate_eulerian_cycle(node_dict):
+    eulerian_cycle = generate_eulerian_walk(node_dict)
+
+    return eulerian_cycle
+
+
+def generate_eulerian_path(node_dict, extra_edge):
+    eulerian_path = generate_eulerian_walk(node_dict)
+
+    break_point = [x for x, y in enumerate(eulerian_path) if
+                   (y == extra_edge[0] and eulerian_path[x + 1] == extra_edge[1])][0]
+
+    eulerian_path = eulerian_path[break_point + 1:-1] + eulerian_path[:break_point + 1]
+    return eulerian_path
+
+
+def eulerian_walk(adjacency_list, eulerian_path=False):
+    if eulerian_path:
+        node_dict, extra_edge = unbalanced_nodes(adjacency_list)
+        return generate_eulerian_path(node_dict, extra_edge)
+    else:
+        node_dict = generate_node_dict(adjacency_list)
+        return generate_eulerian_cycle(node_dict)
+
+
+def string_reconstruction(reads):
+    reads = de_bruijn_graph(reads, 0)
+    node_dict, extra_edge = unbalanced_nodes(reads, debruijn=True)
+    return simple_string_assembly(generate_eulerian_path(node_dict, extra_edge))
+
+
+def k_universal_string(k):
+    strings = ["".join(x) for x in product("01", repeat=k)]
+    strings = de_bruijn_graph(strings, 0)
+    cycle = generate_eulerian_walk(strings)
+    print(len(cycle), cycle)
+    return simple_string_assembly(cycle[:-(k - 1)])
