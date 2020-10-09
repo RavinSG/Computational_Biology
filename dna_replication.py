@@ -30,6 +30,10 @@ def pattern_count(strand: str, pattern: str) -> int:
 
 
 def compute_frequencies(strand: str, k: int) -> dict:
+    """
+    Returns a dict containing the nucleotides as the keys and the number of occurrences of them in the given strand as
+    the value.
+    """
     freq = defaultdict(int)
     for i in range(len(strand) - k + 1):
         freq[strand[i:i + k]] = freq[strand[i:i + k]] + 1
@@ -58,7 +62,7 @@ def most_frequent_kmer(strand: str, k: int) -> list:
 
 def get_complement(strand: str, reverse=True) -> str:
     """
-    Return the reverse complement of the DNA sequence
+    Return the reverse complement of the DNA sequence.
 
     :param strand: A sequence of nucleotides
     :param reverse: True if the complement should be reversed
@@ -72,6 +76,12 @@ def get_complement(strand: str, reverse=True) -> str:
 
 
 def pattern_to_number(pattern: str) -> int:
+    """
+    Translate a DNA pattern to an integer between 0 and 4^len(pattern).
+
+    :param pattern: A sequence of nucleotides
+    :return: An integer value for the pattern
+    """
     nums = np.flip(np.array(range(len(pattern))))
     values = np.array([STR_TO_NUM[x] for x in pattern])
 
@@ -79,6 +89,13 @@ def pattern_to_number(pattern: str) -> int:
 
 
 def number_to_pattern(number: int, k: int) -> str:
+    """
+    Reverse map the integer back to the relevant DNA pattern of length k.
+
+    :param number: Integer representing the DNA
+    :param k: Length of the pattern
+    :return: Translated DNA pattern
+    """
     pattern = ''
     while number > 3:
         pattern = NUM_TO_STR[number % 4] + pattern
@@ -110,7 +127,7 @@ def skew_loc(strand: str, loc='min') -> int:
 
 def hamming_distance(strand1: str, strand2: str) -> int:
     """
-    Returns the hamming distance between the given two strands
+    Returns the hamming distance between the given two strands.
     """
     distance = 0
     for i in range(len(strand1)):
@@ -151,8 +168,12 @@ def get_neighbors(k_mer: str, d: int) -> list:
     """
     mismatches = [k_mer]
     for dist in range(1, d + 1):
+        # Generate strings that are [0,1,...,d] distant from the original k_mer
         for change_indices in combinations(range(len(k_mer)), dist):
-            for substitutions in product(*[SWAP_BASES[k_mer[i]] for i in change_indices]):
+            # Cycle through all the possible location of the k_mer that can be mutated
+            for substitutions in \
+                    product(*[SWAP_BASES[k_mer[i]] for i in change_indices]):
+                # For each location swap the present nucleotide with the other 3 options
                 new_mismatch = list(k_mer)
                 for idx, sub in zip(change_indices, substitutions):
                     new_mismatch[idx] = sub
@@ -160,7 +181,15 @@ def get_neighbors(k_mer: str, d: int) -> list:
     return mismatches
 
 
-def strand_score(strand, k_mer):
+def strand_score(strand: str, k_mer: str) -> list:
+    """
+    Given a strand of DNA and a k_mer, this function will return the starting location of the sliding window which has t
+    he lowest hamming distance compared to the given k_mer along with the distance.
+
+    :param strand: A sequence of nucleotides
+    :param k_mer: A k length pattern to be matched with the strand
+    :return: A list containing the minimum distance and the starting location
+    """
     length = len(k_mer)
     scores = []
     for i in range(len(strand) - length + 1):
@@ -169,7 +198,15 @@ def strand_score(strand, k_mer):
     return [min(scores), np.argmin(scores)]
 
 
-def motif_enumeration(strands, k, d):
+def motif_enumeration(strands: list, k: int, d: int) -> list:
+    """
+    Given a set of DNA sequences find a list of k_mers that appears in every sequence with at most d mismatches.
+
+    :param strands: The set of sequences a k_mer should be founded from
+    :param k: Length of the k_mer
+    :param d: Maximum distance between the k_mer and a strand
+    :return: A list of k_mer satisfying the above conditions
+    """
     patterns = []
     candidate = strands[0]
     for i in range(len(candidate) - k + 1):
@@ -206,7 +243,16 @@ def frequent_words_with_mismatch(strand: str, k: int, d: int) -> list:
     return [x for x, y in possible_k_mers.items() if y == max_count]
 
 
-def find_clumps(genome: str, k: int, l: int, t: int):
+def clump_finding(genome: str, k: int, l: int, t: int) -> list:
+    """
+    Slides a window of length l down genome and find k_mers that occur at least t times inside the window.
+
+    :param genome: A sequence of nucleotides
+    :param k: Length of the k_mer
+    :param l: Sliding window size
+    :param t: Minimum number of occurrences needed
+    :return: A list containing all the k_mers that occur at least t times inside the sliding window
+    """
     clumps = set()
     frequencies = compute_frequencies(genome[:l], k)
     for x, y in frequencies.items():
@@ -222,10 +268,19 @@ def find_clumps(genome: str, k: int, l: int, t: int):
         if frequencies[last_pattern] >= t:
             clumps.add(last_pattern)
 
-    return clumps
+    return list(clumps)
 
 
 def hanoi_towers(n, start_peg, destination_peg):
+    """
+    Solves the towers of Hanoi problem using recursion.
+    The pegs are numbered as 1,2,3.
+
+    :param n: Number of disks in the starting peg
+    :param start_peg: Number of the starting peg
+    :param destination_peg: Number of the destination peg
+    :return: A list of actions to move all the pegs from the starting location to the destination
+    """
     if n == 1:
         print(start_peg, destination_peg)
     else:
