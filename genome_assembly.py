@@ -38,14 +38,46 @@ def de_bruijn_graph(strand, k):
         print(i, "->", ",".join(j))
 
 
-def generate_eulerian_cycle(adjacency_list):
-    node_dict = dict()
+def generate_node_dict(adjacency_list):
+    node_dict = defaultdict(list)
     total_edges = 1
     for i in adjacency_list:
         nodes = i.split(" -> ")
         dst_nodes = list(map(int, nodes[1].split(',')))
         total_edges += len(dst_nodes)
         node_dict[int(nodes[0])] = dst_nodes
+
+    return node_dict, total_edges
+
+
+def unbalanced_nodes(adjacency_list):
+    node_dict, total_edges = generate_node_dict(adjacency_list)
+    in_edges = defaultdict(int)
+
+    for nodes in node_dict.values():
+        for node in nodes:
+            in_edges[node] += 1
+
+    total_nodes = set(list(node_dict.keys()) + list(in_edges.keys()))
+    missing_edge = [None, None]
+    unbalance_nodes = [[node, in_edges[node], len(node_dict[node])] for node in total_nodes if
+                       in_edges[node] != len(node_dict[node])]
+
+    for node in unbalance_nodes:
+        if node[1] < node[2]:
+            missing_edge[1] = node[0]
+        else:
+            missing_edge[0] = node[0]
+
+    node_dict[missing_edge[0]].append(missing_edge[1])
+    return node_dict, total_edges + 1, missing_edge
+
+
+def generate_eulerian_cycle(adjacency_list, eulerian_path=False):
+    if eulerian_path:
+        node_dict, total_edges, extra_edge = unbalanced_nodes(adjacency_list)
+    else:
+        node_dict, total_edges = generate_node_dict(adjacency_list)
 
     eulerian_cycle = []
     next_node = list(node_dict)[0]
@@ -62,4 +94,10 @@ def generate_eulerian_cycle(adjacency_list):
                     next_node = j
                     break
             else:
-                return eulerian_cycle
+                if eulerian_path:
+                    break_point = [x for x, y in enumerate(eulerian_cycle) if
+                                   (y == extra_edge[0] and eulerian_cycle[x + 1] == extra_edge[1])][0]
+                    eulerian_cycle = eulerian_cycle[break_point + 1:-1] + eulerian_cycle[:break_point + 1]
+                    return eulerian_cycle
+                else:
+                    return eulerian_cycle
