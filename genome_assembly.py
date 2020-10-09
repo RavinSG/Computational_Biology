@@ -50,8 +50,8 @@ def generate_node_dict(adjacency_list):
     return node_dict
 
 
-def unbalanced_nodes(adjacency_list, debruijn=False):
-    if not debruijn:
+def unbalanced_nodes(adjacency_list, dict_form=False):
+    if not dict_form:
         node_dict = generate_node_dict(adjacency_list)
     else:
         node_dict = adjacency_list
@@ -122,7 +122,7 @@ def eulerian_walk(adjacency_list, eulerian_path=False):
 
 def string_reconstruction(reads):
     reads = de_bruijn_graph(reads, 0)
-    node_dict, extra_edge = unbalanced_nodes(reads, debruijn=True)
+    node_dict, extra_edge = unbalanced_nodes(reads, dict_form=True)
     return simple_string_assembly(generate_eulerian_path(node_dict, extra_edge))
 
 
@@ -132,3 +132,54 @@ def k_universal_string(k):
     cycle = generate_eulerian_walk(strings)
     print(len(cycle), cycle)
     return simple_string_assembly(cycle[:-(k - 1)])
+
+
+def k_d_mers(strand, k, d):
+    k_mer_pairs = []
+    for i in range(len(strand) - (2 * k + d) + 1):
+        k_mer_1 = strand[i:i + k]
+        k_mer_2 = strand[i + k + d:i + d + 2 * k]
+        k_mer_pairs.append(f"({k_mer_1}|{k_mer_2})")
+
+    k_mer_pairs.sort()
+    print(" ".join(k_mer_pairs))
+
+
+def string_spelled_by_gapped_patterns(gapped_patterns, k, d):
+    prefix = []
+    suffix = []
+    for i in gapped_patterns:
+        string = i.split("|")
+        prefix.append(string[0])
+        suffix.append(string[1])
+    prefix = simple_string_assembly(prefix)
+    suffix = simple_string_assembly(suffix)
+
+    str_len = len(gapped_patterns) + 2 * k + d - 1
+    print(str_len, k + d, len(prefix))
+    for i in range(k + d, len(prefix)):
+        if prefix[i] != suffix[i - k - d]:
+            return "Not Found"
+    else:
+        return prefix + suffix[-(k + d):]
+
+
+def read_pair_string_construction(reads, k, d):
+    node_dict = defaultdict(list)
+    for i in reads:
+        edge = i.split("|")
+        node_dict[edge[0][:-1] + "-" + edge[1][:-1]].append(edge[0][1:] + "-" + edge[1][1:])
+
+    node_dict, missing_edge = unbalanced_nodes(node_dict, True)
+    string = generate_eulerian_path(node_dict, missing_edge)
+    prefix = []
+    suffix = []
+    for i in string:
+        splices = i.split('-')
+        prefix.append(splices[0])
+        suffix.append(splices[1])
+
+    prefix = simple_string_assembly(prefix)
+    suffix = simple_string_assembly(suffix)
+
+    return prefix + suffix[-(k + d):]
