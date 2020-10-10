@@ -1,9 +1,12 @@
-from math import log, exp
-from collections import Counter
+from math import log, exp, ceil
+from collections import Counter, defaultdict
 
 from params import *
 from utilities import transcription
 from dna_replication import get_complement
+
+DISTINCT_DICT = DISTINCT_MASSES
+MASS_DICT = INTEGER_MASS
 
 
 def protein_translation(rna_strand):
@@ -34,7 +37,7 @@ def peptide_encoding_substring(strand, peptide):
 
 def theoretical_spectrum(peptide, linear=False):
     cyclospectrum = ["", peptide]
-    weights = [0, sum([INTEGER_MASS[x] for x in peptide])]
+    weights = [0, sum([MASS_DICT[x] for x in peptide])]
 
     l_peptide = len(peptide)
 
@@ -42,14 +45,14 @@ def theoretical_spectrum(peptide, linear=False):
         for i in range(1, l_peptide):
             for j in range(l_peptide - i + 1):
                 codons = peptide[j:j + i]
-                weights.append(sum([INTEGER_MASS[x] for x in codons]))
+                weights.append(sum([MASS_DICT[x] for x in codons]))
                 cyclospectrum.append(codons)
     else:
         peptide = peptide * 2
         for i in range(1, l_peptide):
             for j in range(l_peptide):
                 codons = peptide[j:j + i]
-                weights.append(sum([INTEGER_MASS[x] for x in codons]))
+                weights.append(sum([MASS_DICT[x] for x in codons]))
                 cyclospectrum.append(codons)
 
     weights, cyclospectrum = zip(*sorted(zip(weights, cyclospectrum), key=lambda pair: pair[0]))
@@ -58,7 +61,7 @@ def theoretical_spectrum(peptide, linear=False):
 
 
 def mass_peptide(peptide):
-    return sum([INTEGER_MASS[x] for x in peptide])
+    return sum([MASS_DICT[x] for x in peptide])
 
 
 def num_of_possible_peptides(mass, mass_dict):
@@ -88,12 +91,10 @@ def calculate_c(num_1, num_2):
 
 
 def expand_peptide(peptide):
-    return [peptide + x for x in DISTINCT_MASSES.keys()]
+    return [peptide + x for x in DISTINCT_DICT.keys()]
 
 
 def check_consistency(spectrum_1, spectrum_2, mirror=False):
-    # t_w_spectrum = theoretical_spectrum(peptide)[0]
-    # spectrum_2 = Counter(t_w_spectrum)
     if mirror:
         if spectrum_1 != spectrum_2:
             return False
@@ -140,3 +141,71 @@ def cyclopeptide_sequencing(spectrum):
 
         candidate_peptides = next_batch
     return final_peptides
+
+
+def score_cyclopeptide(peptide, experimental_spectrum, linear=True):
+    t_spectrum = theoretical_spectrum(peptide, linear)[0]
+    t_spectrum = Counter(t_spectrum)
+    e_spectrum = defaultdict(int, Counter(experimental_spectrum))
+    score = 0
+    for i, j in t_spectrum.items():
+        score += min(j, e_spectrum[i])
+
+    return score
+
+
+def trim_leaderboard(leaderboard, spectrum, n):
+    scores = [score_cyclopeptide(x, spectrum) for x in leaderboard]
+    scores, leaderboard = zip(*sorted(zip(scores, leaderboard), key=lambda pair: pair[0], reverse=True))
+
+    if not len(leaderboard) <= n:
+        try:
+            while scores[n] == scores[n + 1]:
+                n += 1
+        except IndexError:
+            n = n - 1
+
+    return list(leaderboard[:n])
+
+
+def leaderboard_cyclopeptide_sequencing(spectrum, n, weight_dict=None):
+    global DISTINCT_DICT, MASS_DICT
+    if weight_dict is not None:
+        DISTINCT_DICT = weight_dict
+        MASS_DICT = weight_dict
+
+    parent_mass = spectrum[-1]
+    leaderboard = [""]
+    leader_peptide = ''
+    leader_score = score_cyclopeptide(leader_peptide, spectrum)
+    best_peps = []
+    while True:
+        # print(leaderboard)
+        previous_batch = leaderboard.copy()
+        leaderboard = []
+        # print(previous_batch)
+        while previous_batch:
+            leaderboard += expand_peptide(previous_batch.pop())
+        next_batch = leaderboard.copy()
+        for peptide in leaderboard:
+            peptide_mass = mass_peptide(peptide)
+            if peptide_mass == parent_mass:
+                peptide_score = score_cyclopeptide(peptide, spectrum, linear=False)
+                if peptide_score > leader_score:
+                    leader_peptide = peptide
+                    leader_score = peptide_score
+                    next_batch.remove(peptide)
+                    best_peps = [peptide]
+                elif peptide_score == leader_score:
+                    best_peps.append(peptide)
+            elif peptide_mass > parent_mass:
+                next_batch.remove(peptide)
+
+        if len(next_batch) > 0:
+            leaderboard = trim_leaderboard(next_batch, spectrum, n)
+            # n = ceil(n / 2)
+
+        else:
+            DISTINCT_DICT = DISTINCT_MASSES
+            MASS_DICT = INTEGER_MASS
+            return leader_peptide, best_peps
