@@ -1,6 +1,6 @@
-from itertools import permutations, product
-from collections import defaultdict
 from copy import deepcopy
+from collections import defaultdict
+from itertools import permutations, product
 
 
 def composition(strand, k):
@@ -151,7 +151,7 @@ def k_d_mers(strand, k, d):
         k_mer_pairs.append(f"({k_mer_1}|{k_mer_2})")
 
     k_mer_pairs.sort()
-    print(" ".join(k_mer_pairs))
+    return k_mer_pairs
 
 
 def string_spelled_by_gapped_patterns(gapped_patterns, k, d):
