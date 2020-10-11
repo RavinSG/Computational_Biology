@@ -180,10 +180,8 @@ def leaderboard_cyclopeptide_sequencing(spectrum, n, weight_dict=None):
     leader_score = score_cyclopeptide(leader_peptide, spectrum)
     best_peps = []
     while True:
-        # print(leaderboard)
         previous_batch = leaderboard.copy()
         leaderboard = []
-        # print(previous_batch)
         while previous_batch:
             leaderboard += expand_peptide(previous_batch.pop())
         next_batch = leaderboard.copy()
@@ -203,9 +201,48 @@ def leaderboard_cyclopeptide_sequencing(spectrum, n, weight_dict=None):
 
         if len(next_batch) > 0:
             leaderboard = trim_leaderboard(next_batch, spectrum, n)
-            # n = ceil(n / 2)
 
         else:
             DISTINCT_DICT = DISTINCT_MASSES
             MASS_DICT = INTEGER_MASS
             return leader_peptide, best_peps
+
+
+def spectral_convolution(spectrum):
+    convolution = []
+    for i in range(len(spectrum) - 1):
+        for j in range(i, len(spectrum)):
+            convolution.append(spectrum[j] - spectrum[i])
+
+    return [x for x in convolution if x != 0]
+
+
+def convolution_cyclopeptide_sequencing(spectrum, m, n):
+    spectrum.sort()
+    convolution = Counter(spectral_convolution(spectrum))
+    scores, amino_acids = list(zip(*sorted(zip(convolution.values(), convolution.keys()), reverse=True)))
+
+    alphabet = {}
+    i = 0
+    while m > 0:
+        try:
+            codon = REVERSE_EXTENDED[amino_acids[i]]
+            alphabet[codon] = EXTENDED_AMINO[codon]
+            m -= 1
+        except KeyError:
+            pass
+        finally:
+            i += 1
+
+    try:
+        while scores[i] == scores[i + 1]:
+            codon = REVERSE_EXTENDED[amino_acids[i]]
+            alphabet[codon] = EXTENDED_AMINO[codon]
+            i += 1
+    except (KeyError, IndexError):
+        pass
+
+    print(alphabet)
+    pep, b_peps = leaderboard_cyclopeptide_sequencing(spectrum, n, alphabet)
+
+    return pep, b_peps
