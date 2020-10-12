@@ -8,3 +8,4 @@ You can find the following chapters implemented in the relevant files.
 * [Chapter 2](./dna_patterns.py): Which DNA Patterns Play the Role of Molecular Clocks?
 * [Chapter 3](./genome_assembly.py): How Do We Assemble Genomes?
 * [Chapter 4](./sequencing_antibiotics.py): How Do We Sequence Antibiotics?
+* [Chapter 5](./compare_sequences.py):  How Do We Compare Sequences?
