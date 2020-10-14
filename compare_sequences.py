@@ -69,9 +69,6 @@ def string_backtrack(string_1, string_2, score_matrix=None, indel_penalty=5, loc
             for i in range(1, l_1):
                 max_values[i, 0] = max_values[i - 1, 0] - indel_penalty
 
-        else:
-            base_value = -np.inf
-
         for i in range(1, l_2):
             max_values[0, i] = max_values[0, i - 1] - indel_penalty
 
@@ -175,37 +172,46 @@ def calculate_global_score(string_1, string_2):
     score = 0
     for x, y in zip(string_1, string_2):
         if x == '-' or y == '-':
-            score -= 5
+            score -= 1
+        elif x != y:
+            score -= 3
         else:
-            score += BLOSUM_MATRIX[x][y]
+            score += 1
 
     return score
 
 
-def edit_distance(string_1, string_2):
+def generate_score_matrix(string_1, string_2):
     alphabet = set(string_1).union(string_2)
     score_matrix = {}
     for i in alphabet:
         score_matrix[i] = {x: 0 if x == i else -1 for x in alphabet}
 
+    return score_matrix
+
+
+def edit_distance(string_1, string_2):
+    score_matrix = generate_score_matrix(string_1, string_2)
+
     return find_longest_common_sequence(string_1, string_2, score_matrix, indel_penalty=1)
 
 
-def fitting_alignment(string_1, string_2):
-    alphabet = set(string_1).union(string_2)
-    score_matrix = {}
-    for i in alphabet:
-        score_matrix[i] = {x: 1 if x == i else -1 for x in alphabet}
-
-    backtrack, max_values = string_backtrack(string_1, string_2, score_matrix, local_align=True, indel_penalty=1,
-                                             fitting=True)
-
+def fitting_alignment(string_1, string_2, overlapping=False):
     align_1 = ""
     align_2 = ""
+    score_matrix = generate_score_matrix(string_1, string_2)
+    backtrack, max_values = string_backtrack(string_1, string_2, score_matrix, local_align=False, indel_penalty=2,
+                                             fitting=True)
 
-    end_row = np.argmax(max_values, axis=0)[-1]
-    j = len(string_2)
-    i = end_row
+    if overlapping:
+        i = len(string_1)
+        j = np.argmax(max_values[-1])
+
+    else:
+        i = np.argmax(max_values, axis=0)[-1]
+        j = len(string_2)
+
+    end_row = [i, j]
 
     while j > 0:
         value = backtrack[i, j]
@@ -223,5 +229,5 @@ def fitting_alignment(string_1, string_2):
             i = i - 1
             j = j - 1
 
-    print(max_values[end_row, -1])
+    print(max_values[end_row[0], end_row[1]])
     return align_1, align_2
