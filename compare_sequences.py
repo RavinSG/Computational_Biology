@@ -33,10 +33,10 @@ def manhattan_tourist_problem(n, m, down_matrix, right_matrix):
             distances[i, j] = max((distances[i - 1, j] + down_matrix[i - 1, j]),
                                   (distances[i, j - 1] + right_matrix[i, j - 1]))
 
-    print(distances[-1, -1])
+    return distances[-1, -1]
 
 
-def string_backtrack(string_1, string_2, score_matrix=None, indel_penalty=5, local_align=False):
+def string_backtrack(string_1, string_2, score_matrix=None, indel_penalty=5, local_align=False, fitting=False):
     l_1 = len(string_1) + 1
     l_2 = len(string_2) + 1
 
@@ -45,7 +45,6 @@ def string_backtrack(string_1, string_2, score_matrix=None, indel_penalty=5, loc
     base_value = -np.inf
     if local_align:
         base_value = 0
-    print("base", base_value)
     if score_matrix is None:
         for i in range(1, l_1):
             for j in range(1, l_2):
@@ -66,8 +65,12 @@ def string_backtrack(string_1, string_2, score_matrix=None, indel_penalty=5, loc
                 else:
                     backtrack[i, j] = 2
     else:
-        for i in range(1, l_1):
-            max_values[i, 0] = max_values[i - 1, 0] - indel_penalty
+        if not fitting:
+            for i in range(1, l_1):
+                max_values[i, 0] = max_values[i - 1, 0] - indel_penalty
+
+        else:
+            base_value = -np.inf
 
         for i in range(1, l_2):
             max_values[0, i] = max_values[0, i - 1] - indel_penalty
@@ -75,8 +78,8 @@ def string_backtrack(string_1, string_2, score_matrix=None, indel_penalty=5, loc
         for i in range(1, l_1):
             for j in range(1, l_2):
 
-                top = max_values[i - 1, j] - 5
-                left = max_values[i, j - 1] - 5
+                top = max_values[i - 1, j] - indel_penalty
+                left = max_values[i, j - 1] - indel_penalty
                 diag = max_values[i - 1, j - 1] + score_matrix[string_1[i - 1]][string_2[j - 1]]
 
                 max_values[i, j] = max(top, left, diag, base_value)
@@ -88,11 +91,12 @@ def string_backtrack(string_1, string_2, score_matrix=None, indel_penalty=5, loc
                 else:
                     backtrack[i, j] = 2
 
+    # print(max_values[-1, -1])
     return backtrack, max_values
 
 
-def find_longest_common_sequence(string_1, string_2, score_matrix=None):
-    backtrack, _ = string_backtrack(string_1, string_2, score_matrix)
+def find_longest_common_sequence(string_1, string_2, score_matrix=None, indel_penalty=5):
+    backtrack, _ = string_backtrack(string_1, string_2, score_matrix, indel_penalty=indel_penalty)
     i = len(string_1)
     j = len(string_2)
     align_1 = ""
@@ -116,8 +120,9 @@ def find_longest_common_sequence(string_1, string_2, score_matrix=None):
     return align_1, align_2
 
 
-def find_local_alignment(string_1, string_2, score_matrix):
-    backtrack, max_values = string_backtrack(string_1, string_2, score_matrix, local_align=True)
+def find_local_alignment(string_1, string_2, score_matrix, indel_penalty=5):
+    backtrack, max_values = string_backtrack(string_1, string_2, score_matrix, local_align=True,
+                                             indel_penalty=indel_penalty)
     align_1 = ""
     align_2 = ""
 
@@ -174,4 +179,49 @@ def calculate_global_score(string_1, string_2):
         else:
             score += BLOSUM_MATRIX[x][y]
 
-    print(score)
+    return score
+
+
+def edit_distance(string_1, string_2):
+    alphabet = set(string_1).union(string_2)
+    score_matrix = {}
+    for i in alphabet:
+        score_matrix[i] = {x: 0 if x == i else -1 for x in alphabet}
+
+    return find_longest_common_sequence(string_1, string_2, score_matrix, indel_penalty=1)
+
+
+def fitting_alignment(string_1, string_2):
+    alphabet = set(string_1).union(string_2)
+    score_matrix = {}
+    for i in alphabet:
+        score_matrix[i] = {x: 1 if x == i else -1 for x in alphabet}
+
+    backtrack, max_values = string_backtrack(string_1, string_2, score_matrix, local_align=True, indel_penalty=1,
+                                             fitting=True)
+
+    align_1 = ""
+    align_2 = ""
+
+    end_row = np.argmax(max_values, axis=0)[-1]
+    j = len(string_2)
+    i = end_row
+
+    while j > 0:
+        value = backtrack[i, j]
+        if value == 0:
+            align_1 = string_1[i - 1] + align_1
+            align_2 = "-" + align_2
+            i = i - 1
+        elif value == 1:
+            align_1 = "-" + align_1
+            align_2 = string_2[j - 1] + align_2
+            j = j - 1
+        else:
+            align_1 = string_1[i - 1] + align_1
+            align_2 = string_2[j - 1] + align_2
+            i = i - 1
+            j = j - 1
+
+    print(max_values[end_row, -1])
+    return align_1, align_2
