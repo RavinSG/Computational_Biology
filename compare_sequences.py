@@ -1,5 +1,4 @@
-import numpy as np
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 
 from params import *
 
@@ -88,12 +87,12 @@ def string_backtrack(string_1, string_2, score_matrix=None, indel_penalty=5, loc
                 else:
                     backtrack[i, j] = 2
 
-    # print(max_values[-1, -1])
-    return backtrack, max_values
+    score = max_values[-1, -1]
+    return backtrack, max_values, score
 
 
-def find_longest_common_sequence(string_1, string_2, score_matrix=None, indel_penalty=5):
-    backtrack, _ = string_backtrack(string_1, string_2, score_matrix, indel_penalty=indel_penalty)
+def find_longest_common_sequence(string_1, string_2, score_matrix=None, indel_penalty=0):
+    backtrack, _, score = string_backtrack(string_1, string_2, score_matrix, indel_penalty=indel_penalty)
     i = len(string_1)
     j = len(string_2)
     align_1 = ""
@@ -114,12 +113,12 @@ def find_longest_common_sequence(string_1, string_2, score_matrix=None, indel_pe
             i = i - 1
             j = j - 1
 
-    return align_1, align_2
+    return align_1, align_2, score
 
 
 def find_local_alignment(string_1, string_2, score_matrix, indel_penalty=5):
-    backtrack, max_values = string_backtrack(string_1, string_2, score_matrix, local_align=True,
-                                             indel_penalty=indel_penalty)
+    backtrack, max_values, _ = string_backtrack(string_1, string_2, score_matrix, local_align=True,
+                                                indel_penalty=indel_penalty)
     align_1 = ""
     align_2 = ""
 
@@ -137,14 +136,13 @@ def find_local_alignment(string_1, string_2, score_matrix, indel_penalty=5):
             j = j - 1
         else:
             if max_values[i, j] == 0:
-                print(max_values[end_node[0], end_node[1]])
-                return align_1, align_2
+                score = max_values[end_node[0], end_node[1]]
+                return align_1, align_2, score
             else:
                 align_1 = string_1[i - 1] + align_1
                 align_2 = string_2[j - 1] + align_2
                 i = i - 1
                 j = j - 1
-    return align_1, align_2
 
 
 def find_longest_path(node, parents, path_lengths, backtrack):
@@ -200,8 +198,8 @@ def fitting_alignment(string_1, string_2, overlapping=False):
     align_1 = ""
     align_2 = ""
     score_matrix = generate_score_matrix(string_1, string_2)
-    backtrack, max_values = string_backtrack(string_1, string_2, score_matrix, local_align=False, indel_penalty=2,
-                                             fitting=True)
+    backtrack, max_values, _ = string_backtrack(string_1, string_2, score_matrix, local_align=False, indel_penalty=2,
+                                                fitting=True)
 
     if overlapping:
         i = len(string_1)
@@ -229,5 +227,102 @@ def fitting_alignment(string_1, string_2, overlapping=False):
             i = i - 1
             j = j - 1
 
-    print(max_values[end_row[0], end_row[1]])
+    score = max_values[end_row[0], end_row[1]]
+
+    return align_1, align_2, score
+
+
+def backtrack_layers(string_1, string_2, upper, middle, lower):
+    i = len(string_1)
+    j = len(string_2)
+    align_1 = ""
+    align_2 = ""
+    current_layer = middle
+    layer_id = 1
+
+    while i > 0:
+        value = current_layer[i, j]
+        if layer_id == 1:
+            if value == 0:
+                # align_1 = string_1[i - 1] + align_1
+                # align_2 = "-" + align_2
+                # i -= 1
+                current_layer = upper
+                layer_id = 0
+
+            elif value == 1:
+                # align_1 = '-' + align_1
+                # align_2 = string_2[j - 1] + align_2
+                # j -= 1
+                current_layer = lower
+                layer_id = 2
+            else:
+                align_1 = string_1[i - 1] + align_1
+                align_2 = string_2[j - 1] + align_2
+                i -= 1
+                j -= 1
+
+        elif layer_id == 0:
+            align_1 = string_1[i - 1] + align_1
+            align_2 = "-" + align_2
+            i -= 1
+            if value != 0:
+                current_layer = middle
+                layer_id = 1
+
+        else:
+            align_1 = '-' + align_1
+            align_2 = string_2[j - 1] + align_2
+            j -= 1
+            if value != 0:
+                current_layer = middle
+                layer_id = 1
+
     return align_1, align_2
+
+
+def affine_gap_penalty(string_1, string_2, score_matrix, gap_penalty, ext_penalty):
+    l_1 = len(string_1) + 1
+    l_2 = len(string_2) + 1
+
+    upper_vertical = np.zeros((l_1, l_2))
+    middle = np.zeros((l_1, l_2))
+    lower_horizontal = np.zeros((l_1, l_2))
+
+    backtrack_u = np.zeros((l_1, l_2))
+    backtrack_m = np.zeros((l_1, l_2))
+    backtrack_l = np.zeros((l_1, l_2))
+
+    for i in range(1, l_1):
+        upper_vertical[i, 0] = -(gap_penalty + (i - 1) * ext_penalty)
+        middle[i, 0] = -(gap_penalty + (i - 1) * ext_penalty)
+        lower_horizontal[i, 0] = -(gap_penalty + (i - 1) * ext_penalty)
+
+    for i in range(1, l_2):
+        upper_vertical[0, i] = -(gap_penalty + (i - 1) * ext_penalty)
+        middle[0, i] = -(gap_penalty + (i - 1) * ext_penalty)
+        lower_horizontal[0, i] = -(gap_penalty + (i - 1) * ext_penalty)
+
+    for i in range(1, l_1):
+        for j in range(1, l_2):
+            upper_val = [upper_vertical[i - 1, j] - ext_penalty, middle[i - 1, j] - gap_penalty]
+            lower_val = [lower_horizontal[i, j - 1] - ext_penalty, middle[i, j - 1] - gap_penalty]
+
+            actions = np.argmax([upper_val, lower_val], axis=1)
+
+            upper_vertical[i, j] = upper_val[actions[0]]
+            lower_horizontal[i, j] = lower_val[actions[1]]
+
+            middle_val = [upper_vertical[i, j], lower_horizontal[i, j],
+                          middle[i - 1, j - 1] + score_matrix[string_1[i - 1]][string_2[j - 1]]]
+            action_m = np.argmax(middle_val)
+            middle[i, j] = middle_val[action_m]
+
+            backtrack_u[i, j] = actions[0]
+            backtrack_l[i, j] = actions[1]
+            backtrack_m[i, j] = action_m
+
+    score = middle[-1, -1]
+    align_1, align_2 = backtrack_layers(string_1, string_2, backtrack_u, backtrack_m, backtrack_l)
+
+    return align_1, align_2, score
