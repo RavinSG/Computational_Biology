@@ -112,6 +112,10 @@ def find_longest_common_sequence(string_1, string_2, score_matrix=None, indel_pe
             align_2 = string_2[j - 1] + align_2
             i = i - 1
             j = j - 1
+    while j > 0:
+        align_1 = "-" + align_1
+        align_2 = string_2[j - 1] + align_2
+        j -= 1
 
     return align_1, align_2, score
 
@@ -166,24 +170,22 @@ def find_longest_path(node, parents, path_lengths, backtrack):
     return path_lengths[node], path_lengths, backtrack
 
 
-def calculate_global_score(string_1, string_2):
+def calculate_global_score(string_1, string_2, score_matrix, indel_penalty):
     score = 0
     for x, y in zip(string_1, string_2):
         if x == '-' or y == '-':
-            score -= 1
-        elif x != y:
-            score -= 3
+            score -= indel_penalty
         else:
-            score += 1
+            score += score_matrix[x][y]
 
     return score
 
 
-def generate_score_matrix(string_1, string_2):
+def generate_score_matrix(string_1, string_2, sim_score=1, mismatch=1):
     alphabet = set(string_1).union(string_2)
     score_matrix = {}
     for i in alphabet:
-        score_matrix[i] = {x: 0 if x == i else -1 for x in alphabet}
+        score_matrix[i] = {x: sim_score if x == i else -mismatch for x in alphabet}
 
     return score_matrix
 
@@ -351,7 +353,101 @@ def affine_gap_penalty(string_1, string_2, score_matrix, gap_penalty, ext_penalt
     return align_1, align_2, score
 
 
-g = affine_gap_penalty(
-    "PLEASANTLY",
-    "MEANLY",
-    BLOSUM_MATRIX, 11, 1, local=True)
+def calculate_source_i(string_1, string_2, score_matrix, indel_penalty):
+    # score_matrix = generate_score_matrix(string_1, string_2, 1, 0)
+    l_1 = len(string_1) + 1
+    l_2 = len(string_2) + 1
+
+    max_values = np.zeros((l_1, 2))
+
+    for i in range(1, l_1):
+        max_values[i, 0] = max_values[i - 1, 0] - indel_penalty
+
+    # max_values[0, 1] = -indel_penalty
+
+    for j in range(1, l_2):
+        max_values[0, j % 2] = max_values[0, (j + 1) % 2] - indel_penalty
+        for i in range(1, l_1):
+            top = max_values[i - 1, j % 2] - indel_penalty
+            left = max_values[i, (j - 1) % 2] - indel_penalty
+            diag = max_values[i - 1, (j - 1) % 2] + score_matrix[string_1[i - 1]][string_2[j - 1]]
+
+            max_values[i, j % 2] = max(top, left, diag)
+
+    return max_values[:, len(string_2) % 2]
+
+
+def find_middle_edge(string_1, string_2, score_matrix, indel_penalty):
+    mid_point = np.floor(len(string_2) / 2).astype(int)
+
+    a = calculate_source_i(string_1, string_2[:mid_point], score_matrix, indel_penalty)
+    b = calculate_source_i(string_1[::-1], string_2[mid_point:][::-1], score_matrix, indel_penalty)
+    mid_col = a + b[::-1]
+    mid_index = np.argmax(mid_col)
+    mid = np.array([mid_index, mid_point])
+    if mid_index + 1 < len(mid_col):
+        if mid_col[mid_index] == mid_col[mid_index + 1]:
+            print(string_1, string_2)
+            return mid, 2
+        action = np.argmax((-indel_penalty, score_matrix[string_2[mid_point]][string_1[mid_index]]))
+        if action == 1:
+            return mid, 1
+        else:
+            return mid, 0
+    else:
+        return mid, 0
+
+
+def get_path_alignment(string_1, string_2, start_node, score_matrix, indel_penalty, path):
+    l1 = len(string_1)
+    l2 = len(string_2)
+    if l1 == l2 == 0:
+        return path
+    if l1 == 0:
+        path += [0] * l2
+        # print(start_node, "*0" * l2)
+        return path
+    elif l2 == 0:
+        # print(start_node, "*2" * l1)
+        path += [2] * l1
+        return path
+    else:
+        mid_node, mid_edge = find_middle_edge(string_1, string_2, score_matrix, indel_penalty)
+        path = get_path_alignment(string_1[:mid_node[0]], string_2[:mid_node[1]], start_node, score_matrix,
+                                  indel_penalty, path)
+        start_node = mid_node + start_node
+        # print(start_node, mid_edge)
+        path.append(mid_edge)
+        if mid_edge == 0:
+            mid_node += [0, 1]
+        elif mid_edge == 1:
+            mid_node += [1, 1]
+        else:
+            mid_node += [1, 0]
+
+        path = get_path_alignment(string_1[mid_node[0]:], string_2[mid_node[1]:], start_node, score_matrix,
+                                  indel_penalty, path)
+
+        return path
+
+
+def linear_space_alignment(string_1, string_2, score_matrix, indel_penalty):
+    path = get_path_alignment(string_1, string_2, [0, 0], score_matrix, indel_penalty, [])
+
+    string_1 = list(string_1)
+    string_2 = list(string_2)
+    align_1 = ""
+    align_2 = ""
+
+    for i in path:
+        if i == 0:
+            align_1 = "-" + align_1
+            align_2 = string_2.pop(0) + align_2
+        elif i == 1:
+            align_1 = string_1.pop(0) + align_1
+            align_2 = string_2.pop(0) + align_2
+        else:
+            align_1 = string_1.pop(0) + align_1
+            align_2 = "-" + align_2
+
+    return align_1[::-1], align_2[::-1]
