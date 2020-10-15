@@ -232,9 +232,12 @@ def fitting_alignment(string_1, string_2, overlapping=False):
     return align_1, align_2, score
 
 
-def backtrack_layers(string_1, string_2, upper, middle, lower):
-    i = len(string_1)
-    j = len(string_2)
+def backtrack_layers(string_1, string_2, upper, middle, lower, local=False, end_node=None):
+    if local:
+        i, j = end_node
+    else:
+        i = len(string_1)
+        j = len(string_2)
     align_1 = ""
     align_2 = ""
     current_layer = middle
@@ -244,46 +247,56 @@ def backtrack_layers(string_1, string_2, upper, middle, lower):
         value = current_layer[i, j]
         if layer_id == 1:
             if value == 0:
-                # align_1 = string_1[i - 1] + align_1
-                # align_2 = "-" + align_2
-                # i -= 1
                 current_layer = upper
                 layer_id = 0
 
             elif value == 1:
-                # align_1 = '-' + align_1
-                # align_2 = string_2[j - 1] + align_2
-                # j -= 1
                 current_layer = lower
                 layer_id = 2
-            else:
+
+            elif value == 2:
                 align_1 = string_1[i - 1] + align_1
                 align_2 = string_2[j - 1] + align_2
                 i -= 1
                 j -= 1
+            else:
+                align_1 = string_1[i - 1] + align_1
+                align_2 = string_2[j - 1] + align_2
+                return align_1, align_2
 
         elif layer_id == 0:
             align_1 = string_1[i - 1] + align_1
             align_2 = "-" + align_2
             i -= 1
-            if value != 0:
+            if value == 0:
+                continue
+            elif value == 1:
                 current_layer = middle
                 layer_id = 1
+            else:
+                return align_1, align_2
 
         else:
             align_1 = '-' + align_1
             align_2 = string_2[j - 1] + align_2
             j -= 1
-            if value != 0:
+            if value == 0:
+                continue
+            elif value == 1:
                 current_layer = middle
                 layer_id = 1
+            else:
+                return align_1, align_2
 
     return align_1, align_2
 
 
-def affine_gap_penalty(string_1, string_2, score_matrix, gap_penalty, ext_penalty):
+def affine_gap_penalty(string_1, string_2, score_matrix, gap_penalty, ext_penalty, local=False):
     l_1 = len(string_1) + 1
     l_2 = len(string_2) + 1
+    base_val = -np.inf
+    if local:
+        base_val = 0
 
     upper_vertical = np.zeros((l_1, l_2))
     middle = np.zeros((l_1, l_2))
@@ -305,8 +318,8 @@ def affine_gap_penalty(string_1, string_2, score_matrix, gap_penalty, ext_penalt
 
     for i in range(1, l_1):
         for j in range(1, l_2):
-            upper_val = [upper_vertical[i - 1, j] - ext_penalty, middle[i - 1, j] - gap_penalty]
-            lower_val = [lower_horizontal[i, j - 1] - ext_penalty, middle[i, j - 1] - gap_penalty]
+            upper_val = [upper_vertical[i - 1, j] - ext_penalty, middle[i - 1, j] - gap_penalty, base_val]
+            lower_val = [lower_horizontal[i, j - 1] - ext_penalty, middle[i, j - 1] - gap_penalty, base_val]
 
             actions = np.argmax([upper_val, lower_val], axis=1)
 
@@ -314,8 +327,12 @@ def affine_gap_penalty(string_1, string_2, score_matrix, gap_penalty, ext_penalt
             lower_horizontal[i, j] = lower_val[actions[1]]
 
             middle_val = [upper_vertical[i, j], lower_horizontal[i, j],
-                          middle[i - 1, j - 1] + score_matrix[string_1[i - 1]][string_2[j - 1]]]
+                          middle[i - 1, j - 1] + score_matrix[string_1[i - 1]][string_2[j - 1]],
+                          base_val + score_matrix[string_1[i - 1]][string_2[j - 1]]]
+
+            # print(string_1[i - 1], string_2[j - 1], score_matrix[string_1[i - 1]][string_2[j - 1]])
             action_m = np.argmax(middle_val)
+            # print(action_m, middle_val)
             middle[i, j] = middle_val[action_m]
 
             backtrack_u[i, j] = actions[0]
@@ -323,6 +340,18 @@ def affine_gap_penalty(string_1, string_2, score_matrix, gap_penalty, ext_penalt
             backtrack_m[i, j] = action_m
 
     score = middle[-1, -1]
-    align_1, align_2 = backtrack_layers(string_1, string_2, backtrack_u, backtrack_m, backtrack_l)
+    end_node = None
+    if local:
+        end_node = np.unravel_index(np.argmax(middle), middle.shape)
+        score = np.max(middle)
+
+    align_1, align_2 = backtrack_layers(string_1, string_2, backtrack_u, backtrack_m, backtrack_l, local=local,
+                                        end_node=end_node)
 
     return align_1, align_2, score
+
+
+g = affine_gap_penalty(
+    "PLEASANTLY",
+    "MEANLY",
+    BLOSUM_MATRIX, 11, 1, local=True)
