@@ -298,7 +298,7 @@ def read_pair_string_construction(reads: list, k: int, d: int) -> str:
     # Create a list of all possible paths in the graph and iterate through them till a valid string is constructed
     all_paths = list(set(product(*list(split_points.values()))))
 
-    # It would be much efficient to traceback and create select a new path, but too bored to do it.
+    # It would be much efficient to traceback and select a new path, but too bored to do it.
     while all_paths:
         cur_path = all_paths.pop()
         temp_dict = deepcopy(node_dict)
@@ -349,7 +349,7 @@ def maximal_non_branching_paths(nodes: dict) -> list:
 
     for s_node, check in one_in_out_nodes.items():
         # Since isolated cycles are not reachable from the starting node of the graph, search for nodes that are not
-        # present in the created paths.
+        # present in the created paths
         if check and (s_node not in added_nodes):
             path = nodes[s_node][0]
             non_branching_path = [s_node, path]
