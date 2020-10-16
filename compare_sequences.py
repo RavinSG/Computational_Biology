@@ -354,7 +354,6 @@ def affine_gap_penalty(string_1, string_2, score_matrix, gap_penalty, ext_penalt
 
 
 def calculate_source_i(string_1, string_2, score_matrix, indel_penalty):
-    # score_matrix = generate_score_matrix(string_1, string_2, 1, 0)
     l_1 = len(string_1) + 1
     l_2 = len(string_2) + 1
 
@@ -362,8 +361,6 @@ def calculate_source_i(string_1, string_2, score_matrix, indel_penalty):
 
     for i in range(1, l_1):
         max_values[i, 0] = max_values[i - 1, 0] - indel_penalty
-
-    # max_values[0, 1] = -indel_penalty
 
     for j in range(1, l_2):
         max_values[0, j % 2] = max_values[0, (j + 1) % 2] - indel_penalty
@@ -374,26 +371,32 @@ def calculate_source_i(string_1, string_2, score_matrix, indel_penalty):
 
             max_values[i, j % 2] = max(top, left, diag)
 
-    return max_values[:, len(string_2) % 2]
+    if l_2 % 2 == 1:
+        max_values = max_values[:, [1, 0]]
+    return max_values
 
 
 def find_middle_edge(string_1, string_2, score_matrix, indel_penalty):
+    global scores, q, p
     mid_point = np.floor(len(string_2) / 2).astype(int)
 
     a = calculate_source_i(string_1, string_2[:mid_point], score_matrix, indel_penalty)
     b = calculate_source_i(string_1[::-1], string_2[mid_point:][::-1], score_matrix, indel_penalty)
-    mid_col = a + b[::-1]
+    b = np.flip(b)
+    mid_col = a[:, -1] + b[:, 0]
     mid_index = np.argmax(mid_col)
     mid = np.array([mid_index, mid_point])
+    scores.append(mid_col[mid_index])
     if mid_index + 1 < len(mid_col):
-        if mid_col[mid_index] == mid_col[mid_index + 1]:
-            print(string_1, string_2)
-            return mid, 2
-        action = np.argmax((-indel_penalty, score_matrix[string_2[mid_point]][string_1[mid_index]]))
-        if action == 1:
-            return mid, 1
+        max_val = b[mid_index, 1]
+        if max_val - indel_penalty == b[mid_index, 0]:
+            action = 0
+        elif max_val - indel_penalty == b[mid_index + 1, 1]:
+            action = 2
         else:
-            return mid, 0
+            action = 1
+        return mid, action
+
     else:
         return mid, 0
 
@@ -433,7 +436,6 @@ def get_path_alignment(string_1, string_2, start_node, score_matrix, indel_penal
 
 def linear_space_alignment(string_1, string_2, score_matrix, indel_penalty):
     path = get_path_alignment(string_1, string_2, [0, 0], score_matrix, indel_penalty, [])
-
     string_1 = list(string_1)
     string_2 = list(string_2)
     align_1 = ""
