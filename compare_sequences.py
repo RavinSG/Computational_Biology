@@ -377,7 +377,7 @@ def calculate_source_i(string_1, string_2, score_matrix, indel_penalty):
 
 
 def find_middle_edge(string_1, string_2, score_matrix, indel_penalty):
-    global scores, q, p
+    # global scores
     mid_point = np.floor(len(string_2) / 2).astype(int)
 
     a = calculate_source_i(string_1, string_2[:mid_point], score_matrix, indel_penalty)
@@ -386,7 +386,7 @@ def find_middle_edge(string_1, string_2, score_matrix, indel_penalty):
     mid_col = a[:, -1] + b[:, 0]
     mid_index = np.argmax(mid_col)
     mid = np.array([mid_index, mid_point])
-    scores.append(mid_col[mid_index])
+    # scores.append(mid_col[mid_index])
     if mid_index + 1 < len(mid_col):
         max_val = b[mid_index, 1]
         if max_val - indel_penalty == b[mid_index, 0]:
@@ -435,6 +435,7 @@ def get_path_alignment(string_1, string_2, start_node, score_matrix, indel_penal
 
 
 def linear_space_alignment(string_1, string_2, score_matrix, indel_penalty):
+    # There is a bug somewhere, need to look at it later
     path = get_path_alignment(string_1, string_2, [0, 0], score_matrix, indel_penalty, [])
     string_1 = list(string_1)
     string_2 = list(string_2)
@@ -453,3 +454,30 @@ def linear_space_alignment(string_1, string_2, score_matrix, indel_penalty):
             align_2 = "-" + align_2
 
     return align_1[::-1], align_2[::-1]
+
+
+def affine_gap_score(string_1, string_2, match=1, miss=1, gap_open=4, gap_ext=1):
+    score = 0
+    p_x = False
+    p_y = False
+    for x, y in zip(string_1, string_2):
+        if x == '-':
+            if p_x:
+                score -= gap_ext
+            else:
+                p_x = True
+                score -= gap_open
+            continue
+        elif y == '-':
+            if p_y:
+                score -= gap_ext
+            else:
+                p_y = True
+                score -= gap_open
+            continue
+        elif x == y:
+            score += match
+        else:
+            score -= miss
+        p_x, p_y = False, False
+    return score
