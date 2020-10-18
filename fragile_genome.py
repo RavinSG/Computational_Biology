@@ -144,8 +144,29 @@ def two_break_on_genome(genome, a, b, c, d):
     return genome
 
 
-def break_distance(edges):
+def break_distance(genomes):
+    edges = coloured_edges(genomes)
     graph = graph_to_cycles(edges, breakpoint_graph=True)
+    print(graph)
     distance = len(edges) / 2 - len(graph)
 
     return distance
+
+
+def two_break_sorting(genomes):
+    edges = coloured_edges(genomes)
+    graph = graph_to_cycles(edges, breakpoint_graph=True)
+    genome_1 = [genomes[0]]
+    genome_evolution = [genome_1]
+    # for k in genome_1:
+    #     print("(" + " ".join(f'{x:+d}' for x in list(map(int, k))) + ")")
+    for cycle in graph:
+        if len(cycle) == 2:
+            continue
+        else:
+            for i in range(2, len(cycle), 2):
+                break_points = [cycle[i - 2], cycle[-1], cycle[i - 1], cycle[i]]
+                genome_1 = two_break_on_genome(genome_1, *break_points)
+                genome_evolution.append(genome_1)
+
+    return genome_evolution
