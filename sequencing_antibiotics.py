@@ -1,4 +1,4 @@
-from math import log, exp, ceil
+from math import log, exp
 from collections import Counter, defaultdict
 
 from params import *
@@ -9,7 +9,13 @@ DISTINCT_DICT = DISTINCT_MASSES
 MASS_DICT = INTEGER_MASS
 
 
-def protein_translation(rna_strand):
+def protein_translation(rna_strand: str) -> str:
+    """
+    Given a RNA strand, returns the protein that is translated by the strand.
+
+    :param rna_strand: A sequence of RNA bases
+    :return: An amino acid sequence
+    """
     protein = ''
     for i in range(0, len(rna_strand), 3):
         try:
@@ -20,7 +26,15 @@ def protein_translation(rna_strand):
     return protein
 
 
-def peptide_encoding_substring(strand, peptide):
+def peptide_encoding_substring(strand: str, peptide: str) -> list:
+    """
+    Given a peptide and a strand, finds the substrings that transcript in to RNA an then translates into the peptide.
+    Since a DNA strand is a double-helix, the reverse compliment of each substring is also checked.
+
+    :param strand: A sequence of nucleotides
+    :param peptide: A sequence of amino acids
+    :return: A list of substrings that translate into the peptide
+    """
     str_len = 3 * len(peptide)
     substrings = []
     for i in range(len(strand) - str_len + 1):
@@ -35,7 +49,19 @@ def peptide_encoding_substring(strand, peptide):
     return substrings
 
 
-def theoretical_spectrum(peptide, linear=False):
+def theoretical_spectrum(peptide: str, linear=False) -> tuple:
+    """
+    Given a peptide returns the theoretical spectrum of the peptide along with the weights of the sub-peptides.
+    A theoretical spectrum represents all the possible sub-peptides for a given peptide including the empty peptide and
+    the given peptide itself.
+
+    A sub-peptide is a linear fragment of a larger peptide. If the original peptide is circular, the sub-peptides will
+    contain peptides that wrap around the original peptide.
+
+    :param peptide: A sequence of amino acids
+    :param linear: If true some sub-peptides will wrap around the original peptide
+    :return: A list of all possible sub-peptides and their weights
+    """
     cyclospectrum = ["", peptide]
     weights = [0, sum([MASS_DICT[x] for x in peptide])]
 
@@ -60,11 +86,22 @@ def theoretical_spectrum(peptide, linear=False):
     return weights, cyclospectrum
 
 
-def mass_peptide(peptide):
+def mass_peptide(peptide: list) -> list:
+    """
+    Given a list of peptides calculate the masses.
+    """
     return sum([MASS_DICT[x] for x in peptide])
 
 
-def num_of_possible_peptides(mass, mass_dict):
+def num_of_possible_peptides(mass: int, mass_dict: dict) -> tuple:
+    """
+    Given a mass and a mass spectrum, calculate the number of all possible linear peptides with the given mass that
+    coincides with the mass spectrum.
+
+    :param mass: Possible mass of a peptide
+    :param mass_dict: A weight spectrum
+    :return: The number of possible peptides and a dictionary containing the number of peptides for each mass entry
+    """
     if mass == 0:
         return 1, mass_dict
     elif mass < 57:
@@ -81,20 +118,37 @@ def num_of_possible_peptides(mass, mass_dict):
         return n, mass_dict
 
 
-def calculate_c(num_1, num_2):
-    i_1 = num_of_possible_peptides(num_1, {})[0]
-    i_2 = num_of_possible_peptides(num_2, {})[0]
+def calculate_c(num_1: int, num_2: int) -> float:
+    """
+    Calculate the slope of the Integer Mass Vs number of peptides graph
+    """
+    i_1, _ = num_of_possible_peptides(num_1, {})
+    i_2, _ = num_of_possible_peptides(num_2, {})
 
     c = exp(log(i_1 / i_2) / (num_1 - num_2))
 
-    print(c)
+    return c
 
 
-def expand_peptide(peptide):
+def expand_peptide(peptide: str) -> list:
+    """
+    Returns all peptides that can be created by appending one amino acid to the peptide.
+    """
     return [peptide + x for x in DISTINCT_DICT.keys()]
 
 
-def check_consistency(spectrum_1, spectrum_2, mirror=False):
+def check_consistency(spectrum_1: dict, spectrum_2: dict, mirror=False) -> bool:
+    """
+    Given two spectra, checks whether the second spectrum is consistent with the first spectrum.
+
+    Spectrum A is consistent with Spectrum B if, for all keys in Spectrum A, the value of Spectrum A is lower than or
+    equal to the value of Spectrum B.
+
+    :param spectrum_1: Parent mass spectrum
+    :param spectrum_2: Child mass spectrum
+    :param mirror: If true both spectra should be identical
+    :return: Consistency of the two spectra
+    """
     if mirror:
         if spectrum_1 != spectrum_2:
             return False
@@ -108,7 +162,12 @@ def check_consistency(spectrum_1, spectrum_2, mirror=False):
     return True
 
 
-def cyclopeptide_sequencing(spectrum):
+def cyclopeptide_sequencing(spectrum: list) -> set:
+    """
+    Given a theoretical mass spectrum, finds all the peptides that produce the mass spectrum.
+    :param spectrum: A theoretical mass spectrum
+    :return: The peptides responsible for the spectrum
+    """
     weight_counts = Counter(spectrum)
     parent_weight = spectrum[-1]
     final_peptides = set()
@@ -123,15 +182,17 @@ def cyclopeptide_sequencing(spectrum):
         next_batch = candidate_peptides.copy()
 
         for peptide in candidate_peptides:
+            # If the mass of the peptide is equal to the highest mass in the spectrum, check for spectrum equivalence
+            # since it can't be expanded further while being consistent with the spectrum
             if mass_peptide(peptide) == parent_weight:
-                t_w_spectrum = theoretical_spectrum(peptide)[0]
+                t_w_spectrum, _ = theoretical_spectrum(peptide)
                 t_w_count = Counter(t_w_spectrum)
 
                 if check_consistency(weight_counts, t_w_count, mirror=True):
                     next_batch.remove(peptide)
                     final_peptides.add(peptide)
             else:
-                t_w_spectrum = theoretical_spectrum(peptide, linear=True)[0]
+                t_w_spectrum, _ = theoretical_spectrum(peptide, linear=True)
                 t_w_count = Counter(t_w_spectrum)
 
                 if check_consistency(weight_counts, t_w_count):
@@ -143,8 +204,19 @@ def cyclopeptide_sequencing(spectrum):
     return final_peptides
 
 
-def score_cyclopeptide(peptide, experimental_spectrum, linear=True):
-    t_spectrum = theoretical_spectrum(peptide, linear)[0]
+def score_cyclopeptide(peptide: str, experimental_spectrum: list, linear=True) -> int:
+    """
+    Calculates a score of a peptide against an experimental spectrum which was obtained by an experiment.
+
+    Initially the theoretical weight spectrum of the peptide is calculated. The score is calculated by counting the
+    number of masses shared by the two spectra.
+
+    :param peptide: The candidate peptide
+    :param experimental_spectrum: A weight spectrum
+    :param linear: If ture only linear peptides are used to calculate the theoretical weight spectrum
+    :return: An integer score
+    """
+    t_spectrum, _ = theoretical_spectrum(peptide, linear)
     t_spectrum = Counter(t_spectrum)
     e_spectrum = defaultdict(int, Counter(experimental_spectrum))
     score = 0
@@ -154,7 +226,16 @@ def score_cyclopeptide(peptide, experimental_spectrum, linear=True):
     return score
 
 
-def trim_leaderboard(leaderboard, spectrum, n):
+def trim_leaderboard(leaderboard: list, spectrum: list, n: int) -> list:
+    """
+    Given a list of peptides as a leaderboard and a spectrum, returns the top n peptides scored against the spectrum
+    with all ties.
+
+    :param leaderboard: A list of peptides
+    :param spectrum: A mass spectrum
+    :param n: Leaderboard cutoff value
+    :return: Top n entries
+    """
     scores = [score_cyclopeptide(x, spectrum) for x in leaderboard]
     scores, leaderboard = zip(*sorted(zip(scores, leaderboard), key=lambda pair: pair[0], reverse=True))
 
@@ -168,7 +249,16 @@ def trim_leaderboard(leaderboard, spectrum, n):
     return list(leaderboard[:n])
 
 
-def leaderboard_cyclopeptide_sequencing(spectrum, n, weight_dict=None):
+def leaderboard_cyclopeptide_sequencing(spectrum: list, n: int, weight_dict: dict = None) -> tuple:
+    """
+    Given a mass spectrum and an integer n, use a scoreboard to find the most probable peptide that would produce a mass
+    spectrum to the given spectrum.
+
+    :param spectrum: A mass spectrum
+    :param n: Threshold number for the scoreboard
+    :param weight_dict: A weight dictionary to be used for mass calculation
+    :return: A tuple containing a peptide of the highest score and a list containing all peptides with the highest score
+    """
     global DISTINCT_DICT, MASS_DICT
     if weight_dict is not None:
         DISTINCT_DICT = weight_dict
@@ -179,21 +269,25 @@ def leaderboard_cyclopeptide_sequencing(spectrum, n, weight_dict=None):
     leader_peptide = ''
     leader_score = score_cyclopeptide(leader_peptide, spectrum)
     best_peps = []
+
     while True:
         previous_batch = leaderboard.copy()
         leaderboard = []
         while previous_batch:
             leaderboard += expand_peptide(previous_batch.pop())
         next_batch = leaderboard.copy()
+
         for peptide in leaderboard:
             peptide_mass = mass_peptide(peptide)
             if peptide_mass == parent_mass:
                 peptide_score = score_cyclopeptide(peptide, spectrum, linear=False)
+
                 if peptide_score > leader_score:
                     leader_peptide = peptide
                     leader_score = peptide_score
                     next_batch.remove(peptide)
                     best_peps = [peptide]
+                    # Append the peptide to the peptide list with highest scores
                 elif peptide_score == leader_score:
                     best_peps.append(peptide)
             elif peptide_mass > parent_mass:
@@ -203,12 +297,19 @@ def leaderboard_cyclopeptide_sequencing(spectrum, n, weight_dict=None):
             leaderboard = trim_leaderboard(next_batch, spectrum, n)
 
         else:
+            # Revert the weight dictionaries back to their default values
             DISTINCT_DICT = DISTINCT_MASSES
             MASS_DICT = INTEGER_MASS
             return leader_peptide, best_peps
 
 
-def spectral_convolution(spectrum):
+def spectral_convolution(spectrum: list) -> list:
+    """
+    Given a spectrum calculate weight differences between all pairs. If there are multiple values of the same mass, each
+     mass will be treated as an individual value.
+    :param spectrum: A mass spectrum
+    :return: A list of masses except 0
+    """
     convolution = []
     for i in range(len(spectrum) - 1):
         for j in range(i, len(spectrum)):
@@ -217,7 +318,17 @@ def spectral_convolution(spectrum):
     return [x for x in convolution if x != 0]
 
 
-def convolution_cyclopeptide_sequencing(spectrum, m, n):
+def convolution_cyclopeptide_sequencing(spectrum: list, m: int, n: int) -> tuple:
+    """
+    Given a mass spectrum, identify candidate amino acids based on the convolution spectrum and use only these candidate
+    amino acids as the starting peptides. The top m candidates will be selected and a scoreboard with a threshold of m
+    is used.
+
+    :param spectrum: A mass spectrum
+    :param m: Number of peptide candidates
+    :param n: Scoreboard threshold
+    :return: A tuple containing a peptide of the highest score and a list containing all peptides with the highest score
+    """
     spectrum.sort()
     convolution = Counter(spectral_convolution(spectrum))
     scores, amino_acids = list(zip(*sorted(zip(convolution.values(), convolution.keys()), reverse=True)))
