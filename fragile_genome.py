@@ -4,7 +4,7 @@ from collections import defaultdict
 """
 (+1, -2, -3, +4)        - genome
 (2, 3), (4, 5), (6, 1)  - coloured edges/ graph
-(1, 2, 3, 4, 5, 6)      - node sequence
+(1, 2, 3, 4, 5, 6)      - node sequence/ cycle
 """
 
 
@@ -78,18 +78,18 @@ def coloured_edges(chromosomes):
     return edges
 
 
-def graph_to_cycles(graph):
+def graph_to_cycles(graph, breakpoint_graph=False):
     nodes = defaultdict(list)
 
     for i in graph:
         nodes[i[0]].append(i[1])
         nodes[i[1]].append(i[0])
 
-    for i in nodes.keys():
-        nodes[i].append(i + 1 if i % 2 == 1 else i - 1)
+    if not breakpoint_graph:
+        for i in nodes.keys():
+            nodes[i].append(i + 1 if i % 2 == 1 else i - 1)
 
     chromosomes = []
-    print(nodes)
     prev_node = list(nodes.keys())[0]
     next_node = nodes[prev_node][0]
     nodes[prev_node].remove(next_node)
@@ -107,7 +107,6 @@ def graph_to_cycles(graph):
         except IndexError:
             chromosomes.append(chromosome)
             nodes.pop(prev_node)
-            print(nodes)
             if len(nodes) == 0:
                 break
             else:
@@ -143,3 +142,10 @@ def two_break_on_genome(genome, a, b, c, d):
     for cycle in cycles:
         genome.append(cycle_to_genome(cycle))
     return genome
+
+
+def break_distance(edges):
+    graph = graph_to_cycles(edges, breakpoint_graph=True)
+    distance = len(edges) / 2 - len(graph)
+
+    return distance
