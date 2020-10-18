@@ -1,6 +1,8 @@
 import numpy as np
 from collections import defaultdict
 
+from dna_replication import get_complement
+
 """
 (+1, -2, -3, +4)        - genome
 (2, 3), (4, 5), (6, 1)  - coloured edges/ graph
@@ -170,3 +172,24 @@ def two_break_sorting(genomes):
                 genome_evolution.append(genome_1)
 
     return genome_evolution
+
+
+def shared_k_mers(k, strand_1, strand_2):
+    comp_2 = get_complement(strand_2, True)
+    k_mer_dict = defaultdict(list)
+    positions = []
+    len_2 = len(strand_2)
+    for i in range(len(strand_1) - k + 1):
+        k_mer_dict[strand_1[i:i + k]].append(i)
+
+    for i in range(len(strand_2) - k + 1):
+        if strand_2[i:i + k] in k_mer_dict:
+            for pos in k_mer_dict[strand_2[i:i + k]]:
+                positions.append((pos, i))
+
+        if comp_2[i:i + k] in k_mer_dict:
+            for pos in k_mer_dict[comp_2[i:i + k]]:
+                rev = len_2 - k - i
+                positions.append((pos, rev))
+
+    return positions
