@@ -10,3 +10,4 @@ You can find the following chapters implemented in the relevant files.
 * [Chapter 4](./sequencing_antibiotics.py): How Do We Sequence Antibiotics?
 * [Chapter 5](./compare_sequences.py):  How Do We Compare Sequences?
 * [Chapter 6](./fragile_genome.py): Are There Fragile Regions in the Human Genome?
+* [Chapter 7](./evolutionary_patterns.py): Which Animal Gave Us SARS?
