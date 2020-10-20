@@ -31,10 +31,8 @@ def calculate_leaf_distance(adjacency_list):
 def limb_length(distances, leaf):
     num_nodes = len(distances)
     length = np.inf
-    n = 1
-    if leaf == n:
-        n = 2
-    for i in range(n):
+
+    for i in range(min(len(distances), 5)):
         for j in range(num_nodes):
             if i == leaf or j == leaf:
                 continue
@@ -112,3 +110,62 @@ def additive_phylogeny(matrix, num_nodes):
                 break
 
         return tree, num_nodes
+
+
+def upgma(distances, n):
+    clusters = [(x,) for x in range(n)]
+    graph = {(x,): [0] for x in range(n)}
+    max_val = distances.max() + 1
+    for i in range(n):
+        distances[i][i] = max_val
+
+    while len(clusters) > 1:
+        i, j = np.unravel_index(np.argmin(distances), distances.shape)
+        c_i = len(clusters[i])
+        c_j = len(clusters[j])
+        d_i_j = distances[i, j]
+
+        col = (c_i * distances[:, i] + c_j * distances[:, j]) / (c_i + c_j)
+        distances = np.delete(distances, [i, j], axis=0)
+        distances = np.delete(distances, [i, j], axis=1)
+
+        new_cluster = clusters[i] + clusters[j]
+        graph[new_cluster] = [d_i_j / 2]
+        graph[clusters[i]] = [graph[clusters[i]][0], new_cluster]
+        graph[clusters[j]] = [graph[clusters[j]][0], new_cluster]
+
+        if i > j:
+            clusters = clusters[:j] + clusters[j + 1:i] + clusters[i + 1:]
+            col = np.concatenate((col[:j], col[j + 1:i], col[i + 1:]))
+        else:
+            clusters = clusters[:i] + clusters[i + 1:j] + clusters[j + 1:]
+            col = np.concatenate((col[:i], col[i + 1:j], col[j + 1:]))
+
+        distances = np.hstack((distances, col.reshape(-1, 1)))
+        distances = np.vstack((distances, np.append(col, max_val).reshape(1, -1)))
+        clusters.append(new_cluster)
+        n = n + 1
+
+    return graph
+
+
+def print_edge_distances(graph, leaf_count):
+    mapping = dict()
+    for i in graph:
+        if len(i) == 1:
+            mapping[i] = i[0]
+        else:
+            mapping[i] = leaf_count
+            leaf_count += 1
+
+    age_graph = defaultdict(dict)
+    try:
+        for key, value in graph.items():
+            age_graph[mapping[key]][mapping[value[1]]] = graph[value[1]][0] - value[0]
+            age_graph[mapping[value[1]]][mapping[key]] = graph[value[1]][0] - value[0]
+    except IndexError:
+        pass
+
+    for i in range(leaf_count):
+        for key, value in age_graph[i].items():
+            print(f"{i}->{key}:{value}")
