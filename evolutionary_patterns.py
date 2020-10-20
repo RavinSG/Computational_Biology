@@ -116,8 +116,7 @@ def upgma(distances, n):
     clusters = [(x,) for x in range(n)]
     graph = {(x,): [0] for x in range(n)}
     max_val = distances.max() + 1
-    for i in range(n):
-        distances[i][i] = max_val
+    np.fill_diagonal(distances, max_val)
 
     while len(clusters) > 1:
         i, j = np.unravel_index(np.argmin(distances), distances.shape)
@@ -169,3 +168,39 @@ def print_edge_distances(graph, leaf_count):
     for i in range(leaf_count):
         for key, value in age_graph[i].items():
             print(f"{i}->{key}:{value}")
+
+
+def neighbour_join(distances, nodes, k):
+    n = len(distances)
+    if n == 2:
+        dist = distances.max()
+        return {nodes[0]: {nodes[1]: dist}, nodes[1]: {nodes[0]: dist}}
+    else:
+        total_distance = distances.sum(axis=1)
+        d_star = ((n - 2) * distances - total_distance) - total_distance.reshape(-1, 1)
+        max_val = max(d_star.max() + 1, 0)
+        np.fill_diagonal(d_star, max_val)
+        i, j = np.unravel_index(np.argmin(d_star), d_star.shape)
+        node_i = nodes[i]
+        node_j = nodes[j]
+        nodes.remove(node_i)
+        nodes.remove(node_j)
+        d_min = distances[i][j]
+        delta = (total_distance[i] - total_distance[j]) / (n - 2)
+
+        limb_i = (d_min + delta) / 2
+        limb_j = (d_min - delta) / 2
+
+        distance_k = np.delete((distances[:, j] + distances[:, i] - d_min) / 2, [i, j])
+        distances = np.delete(distances, [i, j], axis=0)
+        distances = np.delete(distances, [i, j], axis=1)
+
+        distances = np.hstack((distances, distance_k.reshape(-1, 1)))
+        distances = np.vstack((distances, np.append(distance_k, max_val).reshape(1, -1)))
+        nodes.append(k + 1)
+        tree = neighbour_join(distances, nodes, k + 1)
+        for x, y in zip([node_i, node_j], [limb_i, limb_j]):
+            tree[k + 1][x] = y
+            tree[x] = {k + 1: y}
+
+        return tree
