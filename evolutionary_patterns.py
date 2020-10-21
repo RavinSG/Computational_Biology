@@ -1,5 +1,30 @@
-import numpy as np
 from collections import defaultdict
+
+from params import *
+from dna_replication import hamming_distance
+
+
+def list_to_dict(adjacency_list, weighted=True):
+    node_dict = defaultdict(dict)
+    directed = defaultdict(dict)
+    if weighted:
+        for edge in adjacency_list:
+            edge = edge.split('->')
+            parent = edge[0]
+            child, weight = edge[1].split(':')
+
+            node_dict[parent][child] = int(weight)
+            directed[parent][child] = int(weight)
+            node_dict[child][parent] = int(weight)
+    else:
+        for edge in adjacency_list:
+            edge = edge.split('->')
+
+            node_dict[edge[0]][edge[1]] = 0
+            directed[edge[0]][edge[1]] = 0
+            node_dict[edge[1]][edge[0]] = 0
+
+    return node_dict, directed
 
 
 def calculate_leaf_distance(adjacency_list):
@@ -8,7 +33,7 @@ def calculate_leaf_distance(adjacency_list):
         parent = edge[0]
         child, weight = edge[1].split(':')
 
-        node_dict[int(parent)][int(child)] = int(weight)
+        node_dict[parent][child] = int(weight)
 
     num_nodes = len(node_dict)
     distances = np.ones((num_nodes, num_nodes)) * np.inf
@@ -204,3 +229,48 @@ def neighbour_join(distances, nodes, k):
             tree[x] = {k + 1: y}
 
         return tree
+
+
+def simple_parsimony(graph, char_num):
+    tag = dict()
+    ripe_nodes = []
+    for node in graph:
+        tag[node] = [-1, np.zeros(4)]
+        if not node.isdigit():
+            s_k = np.ones(4) * np.inf
+            character = node[char_num]
+            s_k[STR_TO_NUM[character]] = 0
+
+            tag[node] = [0, s_k]
+            ripe_nodes.append(list(graph[node])[0])
+    ripe_nodes = list(set(ripe_nodes))
+    root = None
+    try:
+        while ripe_nodes:
+            alpha = np.ones((4, 4))
+            np.fill_diagonal(alpha, 0)
+            node = ripe_nodes.pop(0)
+            neighbours = graph[node]
+
+            children = [child for child in neighbours if tag[child][0] != -1]
+            son, daughter = [tag[child][1] for child in children]
+
+            son = np.min(alpha + son, axis=1)
+            daughter = np.min(alpha + daughter, axis=1)
+
+            tag[node][1] = son + daughter
+            tag[node][0] = 0
+            # print(node, son + daughter)
+            child_n = [np.argmin(son), np.argmin(daughter)]
+            for child, num in zip(children, child_n):
+                tag[child][0] = 1
+
+            parent = [i for i in graph[node] if tag[i][0] == -1][0]
+
+            if len([i for i in graph[parent] if tag[i][0] != -1]) == 1:
+                ripe_nodes.append(parent)
+
+    except IndexError:
+        tag[node][0] = NUM_TO_STR[np.argmin(son + daughter)]
+        root = node
+    return tag, root
