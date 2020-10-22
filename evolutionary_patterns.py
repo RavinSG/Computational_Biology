@@ -344,7 +344,10 @@ def directed_binary_tree(adjacency_list, root=None):
 
 
 def move_root(parent_graph, old_root, leaf_len):
+    best_tree = deepcopy(parent_graph)
     score, str_mapping = create_character_sequence(parent_graph, old_root, leaf_len)
+    best_tree = [best_tree, str_mapping]
+
     left_node = list(parent_graph[old_root])[0]
     right_node = list(parent_graph[old_root])[1]
 
@@ -354,11 +357,18 @@ def move_root(parent_graph, old_root, leaf_len):
     dirs = ['left', 'right']
 
     for child, direction in zip(parent_graph[left_node], dirs):
-        score = min(score, move_sub_tree(left_parents, old_root, child, left_node, right_node, direction, leaf_len))
-    for child, direction in zip(parent_graph[right_node], dirs):
-        score = min(score, move_sub_tree(right_parents, old_root, child, right_node, left_node, direction, leaf_len))
+        result = move_sub_tree(left_parents, old_root, child, left_node, right_node, direction, leaf_len)
+        if result[0] < score:
+            score = result[0]
+            best_tree = result[1]
 
-    return score
+    for child, direction in zip(parent_graph[right_node], dirs):
+        result = move_sub_tree(right_parents, old_root, child, right_node, left_node, direction, leaf_len)
+        if result[0] < score:
+            score = result[0]
+            best_tree = result[1]
+
+    return score, best_tree
 
 
 def move_sub_tree(parents, root, start_node, parent_node, sibling, direction, leaf_len):
@@ -370,22 +380,34 @@ def move_sub_tree(parents, root, start_node, parent_node, sibling, direction, le
             left_parents[root][start_node] = 0
             left_parents[root][parent_node] = 0
             left_parents[parent_node] = {sibling: 0, list(left_parents[parent_node])[0]: 0}
+
+            tree_m = deepcopy(left_parents)
             score, str_mapping = create_character_sequence(left_parents, root, leaf_len)
             left_parents.pop(root)
-            s_1 = move_sub_tree(left_parents, root, l_child, start_node, parent_node, 'left', leaf_len)
-            s_2 = move_sub_tree(left_parents, root, r_child, start_node, parent_node, 'right', leaf_len)
-            return min(score, s_1, s_2)
+            s_1, tree_l = move_sub_tree(left_parents, root, l_child, start_node, parent_node, 'left', leaf_len)
+            s_2, tree_r = move_sub_tree(left_parents, root, r_child, start_node, parent_node, 'right', leaf_len)
+
+            scores = [score, s_1, s_2]
+            trees = [[tree_m, str_mapping], tree_l, tree_r]
+            lowest_idx = int(np.argmin(scores))
+            return scores[lowest_idx], trees[lowest_idx]
         else:
             right_parents = deepcopy(parents)
             right_parents[parent_node].pop(start_node)
             right_parents[root][parent_node] = 0
             right_parents[root][start_node] = 0
             right_parents[parent_node] = {list(right_parents[parent_node])[0]: 0, sibling: 0}
+
+            tree_m = deepcopy(right_parents)
             score, str_mapping = create_character_sequence(right_parents, root, leaf_len)
             right_parents.pop(root)
-            s_1 = move_sub_tree(right_parents, root, r_child, start_node, parent_node, 'right', leaf_len)
-            s_2 = move_sub_tree(right_parents, root, l_child, start_node, parent_node, 'left', leaf_len)
-            return min(score, s_1, s_2)
+            s_1, tree_r = move_sub_tree(right_parents, root, r_child, start_node, parent_node, 'right', leaf_len)
+            s_2, tree_l = move_sub_tree(right_parents, root, l_child, start_node, parent_node, 'left', leaf_len)
+
+            scores = [score, s_1, s_2]
+            trees = [[tree_m, str_mapping], tree_r, tree_l]
+            lowest_idx = int(np.argmin(scores))
+            return scores[lowest_idx], trees[lowest_idx]
     else:
         node_parents = deepcopy(parents)
         node_parents[parent_node].pop(start_node)
@@ -393,4 +415,111 @@ def move_sub_tree(parents, root, start_node, parent_node, sibling, direction, le
         node_parents[root][parent_node] = 0
         node_parents[parent_node][sibling] = 0
         score, str_mapping = create_character_sequence(node_parents, root, leaf_len)
-        return score
+        return score, [node_parents, str_mapping]
+
+
+def nearest_neighbours(edge, adjacency_list):
+    temp_list = adjacency_list.copy()
+    node_1, node_2 = edge
+    neigh_1 = []
+    neigh_2 = []
+
+    for i in temp_list:
+        nodes = i.split('->')
+        if nodes[0] == node_1:
+            if nodes[1] != node_2:
+                neigh_1.append(nodes[1])
+
+        elif nodes[0] == node_2:
+            if nodes[1] != node_1:
+                neigh_2.append(nodes[1])
+
+    for i in neigh_1:
+        temp_list.remove(f"{i}->{node_1}")
+        temp_list.remove(f"{node_1}->{i}")
+
+    for i in neigh_2:
+        temp_list.remove(f"{i}->{node_2}")
+        temp_list.remove(f"{node_2}->{i}")
+
+    neighbours = []
+    for i in range(2):
+        node_list = temp_list[::]
+        node_list += [f'{node_1}->{neigh_1[0]}']
+        node_list += [f'{neigh_1[0]}->{node_1}']
+
+        node_list += [f'{node_1}->{neigh_2[i]}']
+        node_list += [f'{neigh_2[i]}->{node_1}']
+
+        node_list += [f'{node_2}->{neigh_1[1]}']
+        node_list += [f'{neigh_1[1]}->{node_2}']
+
+        node_list += [f'{node_2}->{neigh_2[1 - i]}']
+        node_list += [f'{neigh_2[1 - i]}->{node_2}']
+
+        neighbours.append(node_list)
+
+    return neighbours
+
+
+def dict_to_list(graph, un_root=None):
+    adjacency_list = []
+    if un_root is not None:
+        children = list(graph.pop(un_root))
+        graph[children[0]][children[1]] = 0
+
+    for node in graph:
+        for child in graph[node]:
+            adjacency_list.append(f"{child}->{node}")
+            adjacency_list.append(f"{node}->{child}")
+
+    return adjacency_list
+
+
+def nearest_neighbour_interchange(adjacency_list, leaf_len, print_intermediate=False):
+    best_score = np.inf
+    best_graph = None
+    best_mapping = None
+
+    adjacency_list, root = insert_first_root(adjacency_list)
+    parent_graph, _ = directed_binary_tree(adjacency_list, root)
+    score, tree = move_root(parent_graph, root, leaf_len)
+    tree_graph, str_mapping = tree
+    best_adjacency_list = dict_to_list(tree_graph, root)
+
+    while score < best_score:
+        best_score = score
+        best_mapping = str_mapping
+        best_graph = tree_graph
+        swapped_edges = []
+        adjacency_list = best_adjacency_list.copy()
+        for edge in adjacency_list:
+            nodes = set(x for x in edge.split('->'))
+            if nodes not in swapped_edges:
+                swapped_edges.append(nodes)
+                for i in nodes:
+                    if not i.isdigit():
+                        break
+                else:
+                    neighbours = nearest_neighbours(nodes, adjacency_list)
+                    for neighbour in neighbours:
+                        neighbour, root = insert_first_root(neighbour)
+                        parent_graph, _ = directed_binary_tree(neighbour, root)
+                        new_score, new_tree = move_root(parent_graph, root, leaf_len)
+                        new_graph, new_mapping = new_tree
+                        if new_score < score:
+                            score = new_score
+                            tree_graph = new_graph
+                            str_mapping = new_mapping
+                            best_adjacency_list = dict_to_list(tree_graph, root)
+
+        if print_intermediate:
+            print(int(score))
+            for adj_edge in best_adjacency_list:
+                ends = adj_edge.split('->')
+                print(
+                    f"{str_mapping[ends[0]]}->{str_mapping[ends[1]]}:"
+                    f"{hamming_distance(str_mapping[ends[0]], str_mapping[ends[1]])}")
+            print('\n')
+
+    return best_score, best_graph, best_mapping, best_adjacency_list
