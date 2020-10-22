@@ -231,86 +231,59 @@ def neighbour_join(distances, nodes, k):
         return tree
 
 
-def simple_parsimony(graph, char_num):
-    # All nodes except leaves should be integers in either format, string or int
-    tag = dict()
-    ripe_nodes = []
-    for node in graph:
-        tag[node] = [-1, np.zeros(4)]
-        if not node.isdigit():
-            s_k = np.ones(4) * np.inf
-            character = node[char_num]
-            s_k[STR_TO_NUM[character]] = 0
+def simple_parsimony(graph, node, char_num, s_k_values):
+    # graph should be in the format of {parent_1:{child_1,child_2}, parent_2:{child_3,child_4} ,...}
+    if not node.isdigit():
+        s_k = np.ones(4) * np.inf
+        s_k[STR_TO_NUM[node[char_num]]] = 0
+        s_k_values[node] = s_k
+        return s_k, s_k_values
 
-            tag[node] = [0, s_k]
-            ripe_nodes.append(list(graph[node])[0])
-    ripe_nodes = list(set(ripe_nodes))
-    root = None
-    try:
-        while ripe_nodes:
+    else:
+        s_k = 0
+        for child in graph[node]:
+            child_sk, s_k_values = simple_parsimony(graph, child, char_num, s_k_values)
             alpha = np.ones((4, 4))
             np.fill_diagonal(alpha, 0)
-            node = ripe_nodes.pop(0)
-            neighbours = graph[node]
-
-            children = [child for child in neighbours if tag[child][0] != -1]
-            son, daughter = [tag[child][1] for child in children]
-
-            son = np.min(alpha + son, axis=1)
-            daughter = np.min(alpha + daughter, axis=1)
-
-            tag[node][1] = son + daughter
-            tag[node][0] = 0
-            # print(node, son + daughter)
-            child_n = [np.argmin(son), np.argmin(daughter)]
-            for child, num in zip(children, child_n):
-                tag[child][0] = 1
-
-            parent = [i for i in graph[node] if tag[i][0] == -1][0]
-
-            if len([i for i in graph[parent] if tag[i][0] != -1]) == 1:
-                ripe_nodes.append(parent)
-
-    except IndexError:
-        tag[node][0] = NUM_TO_STR[np.argmin(son + daughter)]
-        root = node
-    return tag, root
+            s_k += (child_sk + alpha).min(axis=1)
+        s_k_values[node] = s_k
+        return s_k, s_k_values
 
 
-def create_character_sequence(adjacency_list):
-    graph, directed_graph = list_to_dict(adjacency_list, False)
+def backtrack_parsimony(graph, s_k_values, node):
+    parent_c = s_k_values[node]
+    if node.isdigit():
+        for child in graph[node]:
+            child_min = s_k_values[child].min()
+            if s_k_values[child][STR_TO_NUM[parent_c]] == child_min:
+                s_k_values[child] = parent_c
+            else:
+                s_k_values[child] = NUM_TO_STR[np.argmin(s_k_values[child])]
+
+            s_k_values = backtrack_parsimony(graph, s_k_values, child)
+
+    return s_k_values
+
+
+def create_character_sequence(adjacency_list, leaf_len):
+    parent_graph, root = directed_binary_tree(adjacency_list, None)
     trees = []
-    top = None
-    leaf = list(list(graph.values())[0])[0]
-    for i in range(len(leaf)):
-        tree, top = simple_parsimony(graph, i)
-        trees.append(tree)
+    for i in range(leaf_len):
+        trees.append(simple_parsimony(parent_graph, root, i, {})[1])
 
-    s = 0
-    for i in trees:
-        s += min(i[top][1])
     strings = defaultdict(str)
-
+    score = 0
     for tree in trees:
-        strings[top] += NUM_TO_STR[np.argmin(tree[top][1])]
+        score += tree[root].min()
+        tree[root] = NUM_TO_STR[np.argmin(tree[root])]
 
-    nodes = [top]
+    trees = [backtrack_parsimony(parent_graph, tree, root) for tree in trees]
 
-    while nodes:
-        node = nodes.pop(0)
-        for c_node in directed_graph[node]:
-            nodes.append(c_node)
-            for tree in trees:
-                s_k_node = tree[c_node][1]
-                if s_k_node[STR_TO_NUM[tree[node][0]]] == s_k_node.min():
-                    strings[c_node] += tree[node][0]
-                    tree[c_node][0] = tree[node][0]
-                    continue
+    for node in list(trees[0]):
+        for tree in trees:
+            strings[node] += tree[node]
 
-                strings[c_node] += NUM_TO_STR[np.argmin(s_k_node)]
-                tree[c_node][0] = NUM_TO_STR[np.argmin(s_k_node)]
-
-    return strings
+    return score, strings
 
 
 def insert_first_root(adjacency_list):
@@ -326,6 +299,7 @@ def insert_first_root(adjacency_list):
 
 
 def directed_binary_tree(adjacency_list, root=None):
+    # converts an undirected binary to a directed tree starting fro the node
     tree, _ = list_to_dict(adjacency_list, False)
     if root is None:
         for key, value in tree.items():
@@ -351,12 +325,12 @@ def directed_binary_tree(adjacency_list, root=None):
 def move_root(adjacency_list, parents, old_root):
     left_node = list(parents[old_root])[0]
     right_node = list(parents[old_root])[1]
-    print(parent_edges)
+
     parents.pop(old_root)
     left_parents = deepcopy(parents)
-    print('left parents', left_parents)
     right_parents = deepcopy(parents)
     dirs = ['left', 'right']
+
     for child, direction in zip(parents[left_node], dirs):
         move_sub_tree(adjacency_list, left_parents, old_root, child, left_node, right_node, direction)
     for child, direction in zip(parents[right_node], dirs):
