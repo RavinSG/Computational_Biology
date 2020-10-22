@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from params import *
-from dna_replication import hamming_distance
+from copy import deepcopy
 
 
 def list_to_dict(adjacency_list, weighted=True):
@@ -232,6 +232,7 @@ def neighbour_join(distances, nodes, k):
 
 
 def simple_parsimony(graph, char_num):
+    # All nodes except leaves should be integers in either format, string or int
     tag = dict()
     ripe_nodes = []
     for node in graph:
@@ -274,3 +275,121 @@ def simple_parsimony(graph, char_num):
         tag[node][0] = NUM_TO_STR[np.argmin(son + daughter)]
         root = node
     return tag, root
+
+
+def create_character_sequence(adjacency_list):
+    graph, directed_graph = list_to_dict(adjacency_list, False)
+    trees = []
+    top = None
+    leaf = list(list(graph.values())[0])[0]
+    for i in range(len(leaf)):
+        tree, top = simple_parsimony(graph, i)
+        trees.append(tree)
+
+    s = 0
+    for i in trees:
+        s += min(i[top][1])
+    strings = defaultdict(str)
+
+    for tree in trees:
+        strings[top] += NUM_TO_STR[np.argmin(tree[top][1])]
+
+    nodes = [top]
+
+    while nodes:
+        node = nodes.pop(0)
+        for c_node in directed_graph[node]:
+            nodes.append(c_node)
+            for tree in trees:
+                s_k_node = tree[c_node][1]
+                if s_k_node[STR_TO_NUM[tree[node][0]]] == s_k_node.min():
+                    strings[c_node] += tree[node][0]
+                    tree[c_node][0] = tree[node][0]
+                    continue
+
+                strings[c_node] += NUM_TO_STR[np.argmin(s_k_node)]
+                tree[c_node][0] = NUM_TO_STR[np.argmin(s_k_node)]
+
+    return strings
+
+
+def insert_first_root(adjacency_list):
+    new_root = str(len(adjacency_list) // 2 + 1)
+    old_edge = adjacency_list[0]
+    node_1, node_2 = old_edge.split('->')
+    adjacency_list.remove(old_edge)
+    adjacency_list.remove('->'.join([node_2, node_1]))
+    adjacency_list += ['->'.join([new_root, node]) for node in [node_1, node_2]]
+    adjacency_list += ['->'.join([node, new_root]) for node in [node_1, node_2]]
+
+    return adjacency_list, new_root
+
+
+def directed_binary_tree(adjacency_list, root=None):
+    tree, _ = list_to_dict(adjacency_list, False)
+    if root is None:
+        for key, value in tree.items():
+            if len(value) == 2:
+                root = key
+                break
+    visited = []
+    cur_nodes = [root]
+    parent = defaultdict(dict)
+    while cur_nodes:
+        node = cur_nodes.pop(0)
+        for child in tree[node]:
+            if child in visited:
+                continue
+            else:
+                parent[node][child] = 0
+                cur_nodes.append(child)
+        visited.append(node)
+
+    return parent, root
+
+
+def move_root(adjacency_list, parents, old_root):
+    left_node = list(parents[old_root])[0]
+    right_node = list(parents[old_root])[1]
+    print(parent_edges)
+    parents.pop(old_root)
+    left_parents = deepcopy(parents)
+    print('left parents', left_parents)
+    right_parents = deepcopy(parents)
+    dirs = ['left', 'right']
+    for child, direction in zip(parents[left_node], dirs):
+        move_sub_tree(adjacency_list, left_parents, old_root, child, left_node, right_node, direction)
+    for child, direction in zip(parents[right_node], dirs):
+        move_sub_tree(adjacency_list, right_parents, old_root, child, right_node, left_node, direction)
+
+
+def move_sub_tree(adjacency_list, parents, root, start_node, parent_node, sibling, direction):
+    if start_node in parents:
+        l_child, r_child = parents[start_node]
+        if direction == 'left':
+            left_parents = deepcopy(parents)
+            left_parents[parent_node].pop(start_node)
+            left_parents[root][start_node] = 0
+            left_parents[root][parent_node] = 0
+            left_parents[parent_node] = {sibling: 0, list(left_parents[parent_node])[0]: 0}
+            print(left_parents)
+            left_parents.pop(root)
+            move_sub_tree(adjacency_list, left_parents, root, l_child, start_node, parent_node, 'left')
+            move_sub_tree(adjacency_list, left_parents, root, r_child, start_node, parent_node, 'right')
+        else:
+            right_parents = deepcopy(parents)
+            right_parents[parent_node].pop(start_node)
+            right_parents[root][parent_node] = 0
+            right_parents[root][start_node] = 0
+            right_parents[parent_node] = {list(right_parents[parent_node])[0]: 0, sibling: 0}
+            print(right_parents)
+            right_parents.pop(root)
+            move_sub_tree(adjacency_list, right_parents, root, r_child, start_node, parent_node, 'right')
+            move_sub_tree(adjacency_list, right_parents, root, l_child, start_node, parent_node, 'left')
+    else:
+        node_parents = deepcopy(parents)
+        node_parents[parent_node].pop(start_node)
+        node_parents[root][start_node] = 0
+        node_parents[root][parent_node] = 0
+        node_parents[parent_node][sibling] = 0
+        print(node_parents)
