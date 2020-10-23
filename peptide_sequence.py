@@ -89,9 +89,9 @@ def vector_to_peptide(vector):
     print(peptide)
 
 
-def max_score_peptide(vector_spectrum):
-    vector_spectrum = [0] + vector_spectrum
-    num_nodes = len(vector_spectrum)
+def max_score_peptide(spectrum_vector):
+    spectrum_vector = [0] + spectrum_vector
+    num_nodes = len(spectrum_vector)
     nodes = dict()
     for i in range(num_nodes):
         children = dict()
@@ -100,7 +100,7 @@ def max_score_peptide(vector_spectrum):
             if dst_node >= num_nodes:
                 break
             # print(dst_node)
-            children[dst_node] = vector_spectrum[dst_node]
+            children[dst_node] = spectrum_vector[dst_node]
 
         if len(children) > 0:
             nodes[i] = children
@@ -123,3 +123,60 @@ def max_score_peptide(vector_spectrum):
         node = node_values[node][-1]
 
     return peptide[::-1]
+
+
+def peptide_identification(spectrum_vector, proteome):
+    peptide_len = len(spectrum_vector)
+    weight_vector = [INTEGER_MASS[x] for x in proteome]
+
+    best_peptide = None
+    best_score = -np.inf
+    i = 0
+    j = 0
+
+    while j < len(proteome):
+        peptide_weight = sum(weight_vector[i:j])
+        if peptide_weight < peptide_len:
+            j += 1
+        elif peptide_weight > peptide_len:
+            i += 1
+        else:
+            candidate_peptide = proteome[i:j]
+            peptide_vector = peptide_to_vector(candidate_peptide)
+            score = np.dot(peptide_vector, spectrum_vector)
+            if score > best_score:
+                best_score = score
+                best_peptide = candidate_peptide
+
+            i += 1
+
+    return best_peptide, best_score
+
+
+def psm_search(spectral_vectors, proteome, threshold):
+    psm_set = set()
+
+    for spectral_vector in spectral_vectors:
+        peptide, score = peptide_identification(spectral_vector, proteome)
+        if score >= threshold:
+            psm_set.add(peptide)
+
+    return psm_set
+
+
+def spectral_dictionary(spectral_vector, threshold, max_score):
+    table = defaultdict(lambda: defaultdict(int))
+    table[0][0] = 1
+    weights = list(INTEGER_MASS.values())
+    for t, s_i in enumerate(spectral_vector, 1):
+        for weight in weights:
+            if t - weight > -1:
+                for idx, value in table[t - weight].items():
+                    if -1 < idx + s_i < max_score:
+                        table[t][idx + s_i] += value
+
+    count = 0
+    for i, j in table[len(spectral_vector)].items():
+        if i >= threshold:
+            count += j
+    return count
