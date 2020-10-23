@@ -164,19 +164,77 @@ def psm_search(spectral_vectors, proteome, threshold):
     return psm_set
 
 
-def spectral_dictionary(spectral_vector, threshold, max_score):
+def spectral_dictionary(spectral_vector, threshold, max_score, prob=False):
     table = defaultdict(lambda: defaultdict(int))
     table[0][0] = 1
     weights = list(INTEGER_MASS.values())
+    if prob:
+        factor = 20
+    else:
+        factor = 1
+
     for t, s_i in enumerate(spectral_vector, 1):
         for weight in weights:
             if t - weight > -1:
                 for idx, value in table[t - weight].items():
                     if -1 < idx + s_i < max_score:
-                        table[t][idx + s_i] += value
+                        table[t][idx + s_i] += value / factor
 
     count = 0
     for i, j in table[len(spectral_vector)].items():
         if i >= threshold:
             count += j
     return count
+
+
+def spectral_align(peptide, spectral_vector, k):
+    spectral_vector = [0] + spectral_vector
+    n = len(spectral_vector)
+    m = len(peptide) + 1
+
+    graph = np.ones((k + 1, m, n)) * -np.inf
+    backtrack = defaultdict(lambda: defaultdict(lambda: defaultdict(tuple)))
+    graph[0, 0, 0] = 0
+    weights = [INTEGER_MASS[x] for x in peptide]
+
+    for level in range(k):
+        for row in range(m - 1):
+            for col in range(0, n - 1 - weights[row]):
+                node_val = spectral_vector[col + weights[row]] + graph[level, row, col]
+                if graph[level, row + 1, col + weights[row]] < node_val:
+                    graph[level, row + 1, col + weights[row]] = node_val
+                    backtrack[level, row + 1, col + weights[row]] = (level, row, col)
+
+            for col in range(n - 1):
+                if level == k:
+                    continue
+                else:
+                    diag_edge = col + weights[row]
+                    for child in [x for x in range(col + 1, n) if x != diag_edge]:
+                        node_val = spectral_vector[child] + graph[level, row, col]
+                        if graph[level + 1, row + 1, child] < node_val:
+                            graph[level + 1, row + 1, child] = node_val
+                            backtrack[level + 1, row + 1, child] = (level, row, col)
+
+    node = (k, m - 1, n - 1)
+    nodes = [node]
+    while node != (0, 0, 0):
+        node = backtrack[node]
+        nodes.append(node)
+
+    return graph, nodes[::-1]
+
+
+def modify_peptide(node_sequence, peptide):
+    start_pos = 0
+    modified_peptide = ""
+    for i, j in zip(node_sequence[1:], peptide):
+        mass = i[-1] - start_pos
+        mass_dif = mass - INTEGER_MASS[j]
+        if mass_dif != 0:
+            modified_peptide += f"{j}({mass_dif:+d})"
+        else:
+            modified_peptide += j
+        start_pos = i[-1]
+
+    return modified_peptide
