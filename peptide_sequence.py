@@ -65,3 +65,61 @@ def construct_peptide(graph, node, peptide, spectrum):
             found_pep = construct_peptide(graph, parent, parent_peptide, spectrum)
             if found_pep is not None:
                 return found_pep
+
+
+def peptide_to_vector(peptide):
+    vector = []
+    for i in peptide:
+        pep_vector = [0] * INTEGER_MASS[i]
+        pep_vector[-1] = 1
+        vector += pep_vector
+
+    return vector
+
+
+def vector_to_peptide(vector):
+    vector = np.array(vector)
+    positions = np.where(vector == 1)[0] + 1
+    shift_positions = np.concatenate(([0], positions[:-1]))
+    positions = positions - shift_positions
+    peptide = ""
+    for pos in positions:
+        peptide += REVERSE_DISTINCT[pos]
+
+    print(peptide)
+
+
+def max_score_peptide(vector_spectrum):
+    vector_spectrum = [0] + vector_spectrum
+    num_nodes = len(vector_spectrum)
+    nodes = dict()
+    for i in range(num_nodes):
+        children = dict()
+        for weight in REVERSE_DISTINCT:
+            dst_node = weight + i
+            if dst_node >= num_nodes:
+                break
+            # print(dst_node)
+            children[dst_node] = vector_spectrum[dst_node]
+
+        if len(children) > 0:
+            nodes[i] = children
+
+    node_values = {x: [-np.inf, -1] for x in range(num_nodes)}
+    node_values[0] = [0, -1]
+
+    for parent, children in nodes.items():
+        node_val = node_values[parent][0]
+        for child, edge in children.items():
+            path_value = node_val + edge
+            if node_values[child][0] < path_value:
+                node_values[child] = [path_value, parent]
+
+    peptide = ''
+    node = num_nodes - 1
+    while node > 0:
+        weight = node - node_values[node][-1]
+        peptide += REVERSE_DISTINCT[weight]
+        node = node_values[node][-1]
+
+    return peptide[::-1]
