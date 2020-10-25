@@ -13,6 +13,11 @@ def farthest_first_travel(data_points, k):
     return centers
 
 
+def max_distance(data_points, centers):
+    return np.max(
+        np.min(np.sum((data_points - np.array(centers).reshape((len(centers), 1, -1))) ** 2, axis=2), axis=0) ** 0.5)
+
+
 def calculate_distortion(data_points, centers):
     data_points = np.array(data_points)
     centers = np.array(centers).reshape((len(centers), 1, -1))
@@ -21,17 +26,29 @@ def calculate_distortion(data_points, centers):
     return np.min(distances, axis=0).sum() / len(data_points)
 
 
-def k_means_clustering(data_points, k, random_start=True):
+def k_means_initializer(data_points: np.ndarray, k):
+    centers = np.array([data_points[np.random.choice(len(data_points))]])
+
+    while len(centers) < k:
+        distances = np.min(np.sum((data_points - centers.reshape((len(centers), 1, -1))) ** 2, axis=2), axis=0)
+        proportion = distances / np.sum(distances)
+        centers = np.concatenate((centers, [data_points[np.random.choice(len(data_points), p=proportion)]]))
+
+    return centers.reshape((k, 1, -1))
+
+
+def k_means_clustering(data_points, k, initializer='random'):
     data_points = np.array(data_points)
-    if random_start:
+    if initializer == 'random':
         while True:
             centers = data_points[np.random.choice(len(data_points), k)]
             if len(set(map(tuple, centers))) == k:
                 centers = centers.reshape(k, 1, -1)
                 break
+    elif initializer == "k++":
+        centers = k_means_initializer(data_points, k)
     else:
         centers = data_points[:k].reshape(k, 1, -1)
-
     while True:
         distances = np.sum((data_points - centers) ** 2, axis=2)
         idx = np.argmin(distances, axis=0)
@@ -47,3 +64,37 @@ def k_means_clustering(data_points, k, random_start=True):
             centers = np.array(new_centers).reshape((k, 1, -1))
 
     return np.round(centers.reshape(k, -1), 3)
+
+
+def hidden_matrix_gravity(data_points, clusters):
+    hidden_matrix = 1 / np.sum((data_points - clusters) ** 2, axis=2)
+    hidden_matrix = hidden_matrix / hidden_matrix.sum(axis=0)
+    return hidden_matrix
+
+
+def hidden_matrix_partition(data_points, clusters, beta):
+    hidden_matrix = np.exp(-(np.sum((data_points - clusters) ** 2, axis=2) ** 0.5 * beta))
+    hidden_matrix = hidden_matrix / hidden_matrix.sum(axis=0)
+
+    return hidden_matrix
+
+
+def soft_k_means(data_points, k, initializer='random', beta=None, num_iter=100):
+    data_points = np.array(data_points)
+    low, high = np.min(data_points), np.max(data_points)
+    if initializer == 'random':
+        clusters = low + np.random.random((k, 2)) * (high - low)
+    elif initializer == 'k++':
+        clusters = k_means_initializer(data_points, k)
+    else:
+        clusters = data_points[:k]
+
+    clusters = clusters.reshape(k, 1, -1)
+    i = 0
+    while i < num_iter:
+        hidden_matrix = hidden_matrix_partition(data_points, clusters, beta).reshape(k, -1, 1)
+        clusters = ((np.expand_dims(data_points, 0) * hidden_matrix)
+                    .sum(axis=1) / hidden_matrix.sum(axis=1)).reshape(k, 1, -1)
+        i += 1
+
+    return clusters
