@@ -106,8 +106,8 @@ def diff(snip_1, snip_2):
     s_count = 0
 
     for snip_t in snip_2:
-        for i in range(num):
-            for j in range(i, num):
+        for i in range(num - 1):
+            for j in range(i + 1, num):
                 if snip_t[i] != snip_t[j]:
                     t_count += 1
                     for snip_s in snip_1:
@@ -142,3 +142,57 @@ def randomized_haplotype_search(s_snips, t_snips, k):
             break
 
     return best_snips
+
+
+def verify_compatibility(snip_matrix: np.ndarray):
+    snip_matrix = np.transpose(snip_matrix)
+    lex = ["".join(list(map(str, i))) for i in snip_matrix]
+    sort_idx = np.argsort(lex)
+
+    for i in range(len(sort_idx) - 1):
+        for j in range(i + 1, len(sort_idx)):
+            dif_mat = snip_matrix[i] - snip_matrix[j]
+            if np.sum(dif_mat) < 0:
+                if np.sum(snip_matrix[j]) != np.sum(dif_mat == -1):
+                    return None
+
+    return snip_matrix
+
+
+def perfect_phylogeny(snip_matrix):
+    snip_matrix = np.array(snip_matrix)
+    node_order = verify_compatibility(snip_matrix)
+    leaves = [x for x in range(len(snip_matrix))]
+
+    clusters = [set(leaves)]
+    leaves = np.array(leaves)
+    graph = {tuple(clusters[0]): 0}
+    num_nodes = 1
+
+    if node_order is not None:
+        for i in node_order:
+            cluster = leaves[np.where(i == 1)]
+            for j in clusters:
+                if cluster[0] in j:
+                    parent_node = graph[tuple(j)]
+                    cluster = set(cluster)
+                    old_cluster = j
+                    clusters.remove(old_cluster)
+                    second_cluster = old_cluster.difference(cluster)
+
+                    if len(second_cluster) > 0:
+                        clusters += [cluster, second_cluster]
+                        graph[tuple(second_cluster)] = num_nodes
+                    else:
+                        clusters += [cluster]
+
+                    graph[num_nodes] = parent_node
+                    graph.pop(tuple(j))
+                    graph[tuple(cluster)] = num_nodes
+                    num_nodes += 1
+
+                    break
+
+        return graph
+    else:
+        return None
