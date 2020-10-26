@@ -98,3 +98,47 @@ def soft_k_means(data_points, k, initializer='random', beta=None, num_iter=100):
         i += 1
 
     return clusters
+
+
+def diff(snip_1, snip_2):
+    num = len(snip_2[0])
+    t_count = 0
+    s_count = 0
+
+    for snip_t in snip_2:
+        for i in range(num):
+            for j in range(i, num):
+                if snip_t[i] != snip_t[j]:
+                    t_count += 1
+                    for snip_s in snip_1:
+                        if snip_s[i] != snip_s[j]:
+                            s_count += 1
+                            break
+
+    return s_count / t_count
+
+
+def randomized_haplotype_search(s_snips, t_snips, k):
+    s_snips = np.array(s_snips)
+    t_snips = np.array(t_snips)
+    snip_idx = np.random.choice(len(s_snips), k)
+    best_snips = s_snips[snip_idx]
+    best_score = diff(best_snips, t_snips)
+
+    while True:
+        current_snips = best_snips[::]
+        for i in range(k):
+            new_idx = snip_idx[::]
+            new_idx = np.delete(new_idx, i)
+            for j in range(len(s_snips)):
+                if j not in snip_idx:
+                    temp_idx = np.concatenate((new_idx, [j]))
+                    score = diff(s_snips[temp_idx], t_snips)
+                    if score > best_score:
+                        best_score = score
+                        best_snips = s_snips[temp_idx]
+
+        if np.array_equal(current_snips, best_snips):
+            break
+
+    return best_snips
