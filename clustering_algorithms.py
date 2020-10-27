@@ -1,4 +1,5 @@
 import numpy as np
+from collections import defaultdict
 
 
 def farthest_first_travel(data_points, k):
@@ -100,17 +101,17 @@ def soft_k_means(data_points, k, initializer='random', beta=None, num_iter=100):
     return clusters
 
 
-def diff(snip_1, snip_2):
-    num = len(snip_2[0])
+def diff(s_snips, t_snips):
+    num = len(t_snips[0])
     t_count = 0
     s_count = 0
 
-    for snip_t in snip_2:
+    for snip_t in t_snips:
         for i in range(num - 1):
             for j in range(i + 1, num):
                 if snip_t[i] != snip_t[j]:
                     t_count += 1
-                    for snip_s in snip_1:
+                    for snip_s in s_snips:
                         if snip_s[i] != snip_s[j]:
                             s_count += 1
                             break
@@ -145,10 +146,11 @@ def randomized_haplotype_search(s_snips, t_snips, k):
 
 
 def verify_compatibility(snip_matrix: np.ndarray):
+    # returns the lex sorted transposed snip matrix
     snip_matrix = np.transpose(snip_matrix)
     lex = ["".join(list(map(str, i))) for i in snip_matrix]
-    sort_idx = np.argsort(lex)
-
+    sort_idx = np.argsort(lex)[::-1]
+    snip_matrix = snip_matrix[sort_idx]
     for i in range(len(sort_idx) - 1):
         for j in range(i + 1, len(sort_idx)):
             dif_mat = snip_matrix[i] - snip_matrix[j]
@@ -162,37 +164,77 @@ def verify_compatibility(snip_matrix: np.ndarray):
 def perfect_phylogeny(snip_matrix):
     snip_matrix = np.array(snip_matrix)
     node_order = verify_compatibility(snip_matrix)
-    leaves = [x for x in range(len(snip_matrix))]
-
-    clusters = [set(leaves)]
-    leaves = np.array(leaves)
+    clusters = [set([i for i in range(len(snip_matrix))])]
     graph = {tuple(clusters[0]): 0}
-    num_nodes = 1
 
-    if node_order is not None:
-        for i in node_order:
-            cluster = leaves[np.where(i == 1)]
-            for j in clusters:
-                if cluster[0] in j:
-                    parent_node = graph[tuple(j)]
-                    cluster = set(cluster)
-                    old_cluster = j
-                    clusters.remove(old_cluster)
-                    second_cluster = old_cluster.difference(cluster)
+    for snip in node_order:
+        ancestors = np.where(snip == 1)[0]
+        for cluster in clusters:
+            if ancestors[0] in cluster:
+                new_cluster = set(tuple(ancestors))
+                old_cluster = cluster.difference(new_cluster)
+                clusters.remove(cluster)
+                clusters += [new_cluster, old_cluster]
+                cluster = tuple(cluster)
+                if len(old_cluster) > 0:
+                    new_node = tuple(
+                        np.logical_and(snip_matrix[list(old_cluster)[0]],
+                                       snip_matrix[list(new_cluster)[0]]).astype(int))
+                    graph[tuple(old_cluster)] = new_node
+                    graph[tuple(new_cluster)] = new_node
+                    graph[new_node] = graph[tuple(cluster)]
+                    graph.pop(cluster)
 
-                    if len(second_cluster) > 0:
-                        clusters += [cluster, second_cluster]
-                        graph[tuple(second_cluster)] = num_nodes
-                    else:
-                        clusters += [cluster]
+                break
+    tree = defaultdict(list)
+    for key, value in graph.items():
+        if len(key) != snip_matrix.shape[1]:
+            for k in key:
+                tree[value].append(tuple(snip_matrix[k]))
+        else:
+            tree[value].append(key)
 
-                    graph[num_nodes] = parent_node
-                    graph.pop(tuple(j))
-                    graph[tuple(cluster)] = num_nodes
-                    num_nodes += 1
+    return tree
 
+
+def augment_perfect_phylogeny(graph, snip_vector):
+    # Should come up with a better algorithm
+    parent = graph[0][0]
+    children = graph[parent]
+    char_count = len(snip_vector)
+    new_parent = None
+    while True:
+        for child in children:
+            if child != parent:
+                for i in range(char_count):
+                    if child[i] == 1 and snip_vector[i] != 1:
+                        break
+                else:
+                    new_parent = child
                     break
 
-        return graph
-    else:
-        return None
+        if new_parent in graph and new_parent != parent:
+            children = graph[new_parent]
+            parent = new_parent
+        elif new_parent != parent:
+            new_node = tuple(np.logical_and(new_parent, snip_vector).astype(int))
+            print('n', new_node)
+            graph[parent].remove(new_parent)
+            graph[parent].append(new_node)
+            graph[new_node] += [tuple(snip_vector), new_parent]
+            print('g', graph)
+            break
+        else:
+            print(parent, new_parent)
+            snip_vector = tuple(snip_vector)
+            for node in children:
+                if snip_vector == node:
+                    graph[parent].remove(snip_vector)
+                    graph[parent] += [snip_vector, snip_vector]
+                    print(graph)
+                    break
+            else:
+                new_node = np.logical_and(snip_vector, children[0]).astype(int)
+                print('n', new_node)
+
+            break
