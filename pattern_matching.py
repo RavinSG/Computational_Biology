@@ -100,3 +100,46 @@ def aho_corasick_algorithm(text, patterns, end_flag=""):
         print(i - node[-1][1])
 
     return trie
+
+
+def compress_tree(tree, node, string):
+    if len(node) == 0:
+        return string
+
+    if len(node) == 1:
+        child = list(node)[0]
+        return string + compress_tree(tree, node[child], child)
+
+    # Just return the node value if the node is branching
+    mapping = {}
+    for child in node:
+        mapping[child] = compress_tree(tree, node[child], child)
+
+    for i in mapping:
+        value = node.pop(i)
+        key = mapping[i]
+        if key[-1] == "$":
+            value = -1
+        else:
+            for j in range(1, len(key)):
+                value = value[key[j]]
+        node[key] = value
+    return string
+
+
+def suffix_tree(text):
+    text = text + "$"
+    tree = {0: dict()}
+    txt_len = len(text)
+    for i in range(txt_len):
+        node = tree[0]
+        suffix = text[i:]
+        for char in suffix:
+            if char not in node:
+                node[char] = dict()
+                node = node[char]
+            else:
+                node = node[char]
+
+    compress_tree(tree, tree[0], "")
+    return tree
