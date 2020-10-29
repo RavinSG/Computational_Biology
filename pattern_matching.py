@@ -127,7 +127,7 @@ def compress_tree(tree, node, string):
     return string
 
 
-def suffix_tree(text):
+def create_suffix_tree(text):
     text = text + "$"
     tree = {0: dict()}
     txt_len = len(text)
@@ -143,3 +143,49 @@ def suffix_tree(text):
 
     compress_tree(tree, tree[0], "")
     return tree
+
+
+def longest_repeat(node, length, sub_string, shared=False):
+    child_len = length
+    max_str = sub_string
+    if not shared:
+        for child in node:
+            if node[child] != -1:
+                tree_len = longest_repeat(node[child], length + len(child), sub_string + child)
+                if tree_len[0] > child_len:
+                    child_len = tree_len[0]
+                    max_str = tree_len[1]
+    else:
+        for child in node:
+            if child != 'col' and node[child]['col'] == 2:
+                tree_len = longest_repeat(node[child], length + len(child), sub_string + child, True)
+                if tree_len[0] > child_len:
+                    child_len = tree_len[0]
+                    max_str = tree_len[1]
+
+    return child_len, max_str
+
+
+def colour_tree(node):
+    child_cols = []
+    for child in node:
+        if node[child] == -1:
+            if '#' in child:
+                node[child] = {'col': 0, 'val': -1}
+                child_cols.append(0)
+            else:
+                node[child] = {'col': 1, 'val': -1}
+                child_cols.append(1)
+        else:
+            col = colour_tree(node[child])
+            node[child]['col'] = col
+            child_cols.append(col)
+
+    if 2 in child_cols:
+        return 2
+    elif 0 in child_cols and 1 in child_cols:
+        return 2
+    elif 0 in child_cols:
+        return 0
+    else:
+        return 1
