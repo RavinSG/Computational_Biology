@@ -193,7 +193,7 @@ def spectral_align(peptide, spectral_vector, k):
     m = len(peptide) + 1
 
     graph = np.ones((k + 1, m, n)) * -np.inf
-    backtrack = defaultdict(lambda: defaultdict(lambda: defaultdict(tuple)))
+    backtrack = defaultdict(tuple)
     graph[0, 0, 0] = 0
     weights = [INTEGER_MASS[x] for x in peptide]
 

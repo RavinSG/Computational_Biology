@@ -1,4 +1,4 @@
-from pprint import pprint
+from collections import defaultdict
 
 
 def trie_construction(patterns, end_flag=''):
@@ -275,3 +275,81 @@ def find_shortest_non_shared(string_1, string_2):
             sub_string = sub_string[1:]
 
     return min_sub
+
+
+def suffix_arrays(text):
+    suffixes = [text[x:] for x in range(len(text))]
+    indices = [x for x in range(len(text))]
+
+    _, indices = zip(*sorted(zip(suffixes, indices)))
+
+    return indices
+
+
+def burrows_wheeler_transform(text):
+    indices = suffix_arrays(text)
+    transform = ""
+
+    for i in indices:
+        transform += text[i - 1]
+
+    return transform
+
+
+def create_mapping_matrix(first_col, last_col, reverse=False):
+    char_count_first = defaultdict(int)
+    char_count_last = defaultdict(int)
+    mapping = defaultdict(str)
+
+    for i, j in zip(first_col, last_col):
+        char_first = f"{char_count_first[i]}_{i}"
+        char_count_first[i] += 1
+
+        char_last = f"{char_count_last[j]}_{j}"
+        char_count_last[j] += 1
+
+        if reverse:
+            mapping[char_first] = char_last
+        else:
+            mapping[char_last] = char_first
+
+    return mapping, char_count_first
+
+
+def inverse_burrows_wheeler(last_col):
+    last_col = list(last_col)
+    first_col = last_col[::]
+    first_col.sort()
+
+    mapping, _ = create_mapping_matrix(first_col, last_col)
+
+    string = ""
+    node = '0_' + last_col[0]
+    for _ in range(len(last_col)):
+        string += mapping[node].split('_')[1]
+        node = mapping[node]
+
+    return string[1:] + "$"
+
+
+def burrows_wheeler_matching(last_col, patterns):
+    last_col = list(last_col)
+    first_col = last_col[::]
+    first_col.sort()
+
+    match_count = []
+    mapping, count = create_mapping_matrix(first_col, last_col, True)
+
+    for pattern in patterns:
+        pattern = pattern[::-1]
+        prev_candidates = [f"{x}_{pattern[0]}" for x in range(count[pattern[0]])]
+        for i in range(1, len(pattern)):
+            next_candidates = []
+            for candidate in prev_candidates:
+                if mapping[candidate].split('_')[1] == pattern[i]:
+                    next_candidates.append(mapping[candidate])
+
+            prev_candidates = next_candidates[::]
+        match_count.append(len(prev_candidates))
+
+    return match_count
