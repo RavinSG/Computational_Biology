@@ -189,3 +189,89 @@ def colour_tree(node):
         return 0
     else:
         return 1
+
+
+def print_leaves(node):
+    for child in node:
+        if node[child] == -1:
+            if '#' in child:
+                print(child.split("#")[0])
+        else:
+            print_leaves(node[child])
+
+
+def extract_substrings(root, node, length, sub_string, shared_strings):
+    child_len = length
+    max_str = sub_string
+    end_point = None
+    end_node = True
+    for child in node:
+        if child != 'col' and node[child]['col'] == 2:
+            end_node = False
+            tree_len = extract_substrings(root, node[child], length + len(child), sub_string + child, shared_strings)
+            if node == root:
+                shared_strings.append([tree_len[1], tree_len[-1]])
+            if tree_len[0] > child_len:
+                child_len = tree_len[0]
+                max_str = tree_len[1]
+                end_point = tree_len[-1]
+
+    if end_node:
+        return child_len, max_str, shared_strings, node
+    else:
+        return child_len, max_str, shared_strings, end_point
+
+
+def search_suffix_tree(node, pattern, coloured=True):
+    if coloured:
+        if len(pattern) == 0:
+            return True, node['col']
+        for child in node:
+            if child[0] == pattern[0] and child != 'col' and child != 'val':
+                for i in range(min(len(child), len(pattern))):
+                    if child[i] != pattern[i]:
+                        return False, -1
+                else:
+                    return search_suffix_tree(node[child], pattern[len(child):], True)
+        else:
+            return False, -1
+
+
+def find_shortest_non_shared(string_1, string_2):
+    tree = create_suffix_tree(string_1 + "#" + string_2)
+    root = tree[0]
+    sub_strings = []
+
+    colour_tree(root)
+    extract_substrings(root, root, 0, "", sub_strings)
+
+    lengths = []
+    for i in sub_strings:
+        lengths.append(len(i[0]))
+    lengths, sub_strings = zip(*sorted(zip(lengths, sub_strings)))
+
+    checked_strings = dict()
+    min_len = float('inf')
+    min_sub = ""
+
+    for i in sub_strings:
+        sub_string = i[0]
+        for j in i[1].keys():
+            if '#' in j[1:]:
+                sub_string = sub_string + j[0]
+                break
+
+        node = tree[0]
+        while len(sub_string) > 1:
+            if sub_string in checked_strings:
+                break
+            tree_num = search_suffix_tree(node, sub_string, True)[1]
+            if tree_num < 1:
+                if min_len > len(sub_string):
+                    min_len = len(sub_string)
+                    min_sub = sub_string
+
+            checked_strings[sub_string] = tree_num
+            sub_string = sub_string[1:]
+
+    return min_sub
