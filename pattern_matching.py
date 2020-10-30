@@ -1,3 +1,4 @@
+import numpy as np
 from collections import defaultdict
 
 
@@ -353,3 +354,35 @@ def burrows_wheeler_matching(last_col, patterns):
         match_count.append(len(prev_candidates))
 
     return match_count
+
+
+def last_to_first_mapping(last_column):
+    last_column = list(last_column)
+    indices = [x for x in range(len(last_column))]
+
+    first_column, indices = zip(*sorted(zip(last_column, indices)))
+    last_to_first = np.zeros(len(indices))
+
+    for i in range(len(indices)):
+        last_to_first[indices[i]] = i
+
+    return first_column, last_to_first.astype(int)
+
+
+def count_n(last_col, alphabet=None):
+    if alphabet is None:
+        alphabet = dict()
+        letters = sorted(set(last_col))
+        for i, letter in enumerate(letters):
+            alphabet[letter] = i
+
+    count = []
+    line_count = [0] * len(alphabet)
+
+    for char in last_col:
+        count.append(line_count[::])
+        line_count[alphabet[char]] += 1
+
+    count.append(line_count[::])
+
+    return count
