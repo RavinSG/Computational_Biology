@@ -1,6 +1,8 @@
 import numpy as np
 from collections import defaultdict
 
+from dna_replication import hamming_distance
+
 
 def trie_construction(patterns, end_flag=''):
     trie = dict()
@@ -460,7 +462,7 @@ def count_from_checkpoint(last_col, checkpoint, checkpoint_val, steps, symbol):
     return checkpoint_val
 
 
-def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint=5):
+def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint=100, mismatches=0):
     text = text + "$"
     suffix_array = generate_suffix_array(text)
     last_col, _ = burrows_wheeler_transform(text)
@@ -468,14 +470,14 @@ def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint
         alphabet = get_alphabet(last_col)
     first_occurrences = first_occurrence_array(last_col, alphabet)
     checkpoint_arrays = count_n(last_col, alphabet=alphabet, checkpoints=checkpoint)
-    starting_indices = []
 
-    for pattern in patterns:
-        pattern = pattern[::-1]
+    def find_indices(sub_pattern):
+        starting_indices = []
+        sub_pattern = sub_pattern[::-1]
         top = 0
         bot = len(last_col) - 1
-        while len(pattern) > 0:
-            char = pattern[0]
+        while len(sub_pattern) > 0:
+            char = sub_pattern[0]
             if top % checkpoint != 0:
                 l_top = count_from_checkpoint(last_col, (top // checkpoint) * checkpoint,
                                               checkpoint_arrays[top // checkpoint][alphabet[char]], top % checkpoint,
@@ -493,7 +495,7 @@ def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint
             first_char = first_occurrences[alphabet[char]]
             top = first_char + l_top
             bot = first_char + l_bot - 1
-            pattern = pattern[1:]
+            sub_pattern = sub_pattern[1:]
 
             if bot < top:
                 break
@@ -501,4 +503,44 @@ def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint
             for i in range(top, bot + 1):
                 starting_indices.append(suffix_array[i])
 
-    return starting_indices
+        return starting_indices
+
+    indices = []
+    for pattern in patterns:
+        if mismatches == 0:
+            start_indices = find_indices(pattern)
+            if start_indices:
+                indices += start_indices
+        else:
+            break_points = np.floor(np.linspace(0, len(pattern), mismatches + 2)).astype(int)
+            checked_pos = dict()
+            candidate_pos = dict()
+            for start, end in zip(break_points, break_points[1:]):
+                sub_string = pattern[start:end]
+                candidate_pos[(start, end - start)] = find_indices(sub_string)
+                checked_pos[(start, end - start)] = dict()
+
+            for pos, pos_indices in candidate_pos.items():
+                for pos_index in pos_indices:
+                    distance = 0
+                    if pos_index in checked_pos[pos].keys():
+                        continue
+                    else:
+                        checked_pos[pos][pos_index] = True
+                        for sibling_pos in candidate_pos:
+                            if sibling_pos == pos:
+                                continue
+                            else:
+                                str_start = pos_index + sibling_pos[0] - pos[0]
+                                if str_start in checked_pos[sibling_pos]:
+                                    distance = np.inf
+                                    break
+                                checked_pos[sibling_pos][str_start] = True
+                                sibling = pattern[sibling_pos[0]:sibling_pos[0] + sibling_pos[1]]
+                                string_loc = (str_start, str_start + sibling_pos[1])
+                                distance += hamming_distance(text[string_loc[0]:string_loc[1]], sibling)
+
+                    if distance <= mismatches:
+                        indices.append(pos_index - pos[0])
+
+    return indices
