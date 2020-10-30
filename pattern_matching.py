@@ -278,7 +278,7 @@ def find_shortest_non_shared(string_1, string_2):
     return min_sub
 
 
-def suffix_arrays(text):
+def generate_suffix_array(text):
     suffixes = [text[x:] for x in range(len(text))]
     indices = [x for x in range(len(text))]
 
@@ -288,13 +288,13 @@ def suffix_arrays(text):
 
 
 def burrows_wheeler_transform(text):
-    indices = suffix_arrays(text)
+    indices = generate_suffix_array(text)
     transform = ""
 
     for i in indices:
         transform += text[i - 1]
 
-    return transform
+    return transform, indices
 
 
 def create_mapping_matrix(first_col, last_col, reverse=False):
@@ -366,15 +366,21 @@ def last_to_first_mapping(last_column):
     for i in range(len(indices)):
         last_to_first[indices[i]] = i
 
-    return first_column, last_to_first.astype(int)
+    return last_to_first.astype(int)
 
 
-def count_n(last_col, alphabet=None):
+def get_alphabet(last_col):
+    alphabet = dict()
+    letters = sorted(set(last_col))
+    for i, letter in enumerate(letters):
+        alphabet[letter] = i
+
+    return alphabet
+
+
+def count_n(last_col, alphabet=None, checkpoints=None):
     if alphabet is None:
-        alphabet = dict()
-        letters = sorted(set(last_col))
-        for i, letter in enumerate(letters):
-            alphabet[letter] = i
+        alphabet = get_alphabet(last_col)
 
     count = []
     line_count = [0] * len(alphabet)
@@ -385,13 +391,17 @@ def count_n(last_col, alphabet=None):
 
     count.append(line_count[::])
 
-    return np.array(count), alphabet
+    if checkpoints is not None:
+        return np.array(count[::checkpoints])
+    else:
+        return np.array(count)
 
 
-def fast_bw_matching(last_col, patterns):
-    first_col, last_to_first = last_to_first_mapping(last_col)
-    count_symbol, alphabet = count_n(last_col)
-
+def fast_bw_matching(last_col, patterns, suffix_array=None):
+    last_to_first = last_to_first_mapping(last_col)
+    alphabet = get_alphabet(last_col)
+    count_symbol = count_n(last_col, alphabet)
+    starting_indices = []
     pattern_count = []
     for pattern in patterns:
         pattern = pattern[::-1]
@@ -413,6 +423,82 @@ def fast_bw_matching(last_col, patterns):
                 pattern_count.append(0)
                 break
         else:
+            if suffix_array is not None:
+                for i in range(top, bot + 1):
+                    starting_indices.append(suffix_array[i])
+
             pattern_count.append(bot - top + 1)
 
-    return pattern_count
+    return pattern_count, starting_indices
+
+
+def partial_suffix_array(text, c):
+    suffix_array = generate_suffix_array(text)
+    partial_array = dict()
+    for i, suffix in enumerate(suffix_array):
+        if suffix % c == 0:
+            partial_array[i] = suffix
+
+    return partial_array
+
+
+def first_occurrence_array(last_col, alphabet):
+    first_col = list(last_col)
+    first_col.sort()
+
+    first_occurrences = []
+    for i in alphabet:
+        first_occurrences.append(first_col.index(i))
+
+    return first_occurrences
+
+
+def count_from_checkpoint(last_col, checkpoint, checkpoint_val, steps, symbol):
+    for i in range(checkpoint, checkpoint + steps):
+        if last_col[i] == symbol:
+            checkpoint_val += 1
+    return checkpoint_val
+
+
+def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint=5):
+    text = text + "$"
+    suffix_array = generate_suffix_array(text)
+    last_col, _ = burrows_wheeler_transform(text)
+    if alphabet is None:
+        alphabet = get_alphabet(last_col)
+    first_occurrences = first_occurrence_array(last_col, alphabet)
+    checkpoint_arrays = count_n(last_col, alphabet=alphabet, checkpoints=checkpoint)
+    starting_indices = []
+
+    for pattern in patterns:
+        pattern = pattern[::-1]
+        top = 0
+        bot = len(last_col) - 1
+        while len(pattern) > 0:
+            char = pattern[0]
+            if top % checkpoint != 0:
+                l_top = count_from_checkpoint(last_col, (top // checkpoint) * checkpoint,
+                                              checkpoint_arrays[top // checkpoint][alphabet[char]], top % checkpoint,
+                                              char)
+            else:
+                l_top = checkpoint_arrays[top // checkpoint][alphabet[char]]
+            bot = bot + 1
+            if bot % checkpoint != 0:
+                l_bot = count_from_checkpoint(last_col, (bot // checkpoint) * checkpoint,
+                                              checkpoint_arrays[bot // checkpoint][alphabet[char]], bot % checkpoint,
+                                              char)
+            else:
+                l_bot = checkpoint_arrays[bot // checkpoint][alphabet[char]]
+
+            first_char = first_occurrences[alphabet[char]]
+            top = first_char + l_top
+            bot = first_char + l_bot - 1
+            pattern = pattern[1:]
+
+            if bot < top:
+                break
+        else:
+            for i in range(top, bot + 1):
+                starting_indices.append(suffix_array[i])
+
+    return starting_indices
