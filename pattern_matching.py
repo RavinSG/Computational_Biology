@@ -385,4 +385,34 @@ def count_n(last_col, alphabet=None):
 
     count.append(line_count[::])
 
-    return count
+    return np.array(count), alphabet
+
+
+def fast_bw_matching(last_col, patterns):
+    first_col, last_to_first = last_to_first_mapping(last_col)
+    count_symbol, alphabet = count_n(last_col)
+
+    pattern_count = []
+    for pattern in patterns:
+        pattern = pattern[::-1]
+        top = 0
+        bot = len(last_col) - 1
+        arr_start = top
+        while len(pattern) > 0:
+            next_indices = count_symbol[top:bot + 2][:, alphabet[pattern[0]]]
+            if next_indices[0] != next_indices[-1]:
+                l_top = next_indices[0] + 1
+                l_bot = next_indices[-1]
+                idx = np.searchsorted(next_indices, [l_top, l_bot]) - 1
+
+                top, bot = last_to_first[arr_start + idx[0]], last_to_first[arr_start + idx[1]]
+                arr_start = top
+
+                pattern = pattern[1:]
+            else:
+                pattern_count.append(0)
+                break
+        else:
+            pattern_count.append(bot - top + 1)
+
+    return pattern_count
