@@ -13,4 +13,5 @@ You can find the following chapters implemented in the relevant files.
 * [Chapter 7](./evolutionary_patterns.py): Which Animal Gave Us SARS?
 * [Chapter 8](./clustering_algorithms.py): How Did Yeast Become a Wine Maker? 
 * [Chapter 9](./pattern_matching.py): How Do We Locate Disease-Causing Mutations?
+* [Chapter 10](./hidden_markov_models.py): Why Have Biologists Still Not Developed An HIV Vaccine? 
 * [Chapter 11](./peptide_sequence.py): Was T. Rex Just A Big Chicken?
