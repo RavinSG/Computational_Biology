@@ -157,7 +157,29 @@ def format_number(num):
         return round(num, 3)
 
 
-def print_profiles(transitions, counts, alphabet):
+def add_pseudo_counts_transition(dict_row, pseudo_count, row_num, last_row):
+    col_order = ["I", "M", "D"]
+    addition = [0, 1, 1]
+    tot_prob = round(sum(dict_row.values())) + 3 * pseudo_count
+
+    if last_row:
+        col_order = col_order[:2]
+        addition = addition[:2]
+        tot_prob = round(sum(dict_row.values())) + 2 * pseudo_count
+
+    for j, i in zip(col_order, addition):
+        next_state = f"{j}{i + row_num}"
+        dict_row[next_state] = round((dict_row[next_state] + pseudo_count) / tot_prob, 3)
+
+
+def add_pseudo_counts_nucleotide(counts, pseudo_count):
+    prob = np.array(counts[1:]).astype(float)
+    prob = (prob + pseudo_count)
+
+    return [counts[0]] + np.round((prob / sum(prob)), 3).astype(str).tolist()
+
+
+def print_profiles(transitions, counts, alphabet, pseudo_count=0.01):
     mapping = {j: i + 1 for i, j in enumerate(alphabet.split(" "))}
     states = ["M", "D", "I"]
     col_order = ["I", "M", "D"]
@@ -167,13 +189,17 @@ def print_profiles(transitions, counts, alphabet):
     transition_matrix = []
     count_row = ['0'] * len(mapping)
     count_matrix = [["S"] + count_row]
-    first_row = [0] + [transitions[0]["M0"]["I0"], transitions[0]["M0"]["M1"], transitions[0]["M0"]["D1"]] + [0] * (
-            3 * (len(transitions) - 1) - 1)
-    second_row = [0] + [transitions[0]["I0"]["I0"], transitions[0]["I0"]["M1"], transitions[0]["I0"]["D1"]] + [0] * (
-            3 * (len(transitions) - 1) - 1)
+    add_pseudo_counts_transition(transitions[0]["M0"], pseudo_count, 0, False)
+    add_pseudo_counts_transition(transitions[0]["I0"], pseudo_count, 0, False)
+    first_row = [0] + [transitions[0]["M0"]["I0"], transitions[0]["M0"]["M1"],
+                       transitions[0]["M0"]["D1"]] + [0] * (3 * (len(transitions) - 1) - 1)
+    second_row = [0] + [transitions[0]["I0"]["I0"], transitions[0]["I0"]["M1"],
+                        transitions[0]["I0"]["D1"]] + [0] * (3 * (len(transitions) - 1) - 1)
     second_count = ["I0"] + count_row
+
     for i, j in counts["I0"].items():
         second_count[mapping[i]] = str(j)
+    second_count = add_pseudo_counts_nucleotide(second_count, pseudo_count)
     count_matrix.append(second_count)
 
     transition_matrix += [first_row, second_row]
@@ -185,7 +211,11 @@ def print_profiles(transitions, counts, alphabet):
             row_count = [current_state] + count_row
             for k, j in counts[current_state].items():
                 row_count[mapping[k]] = str(format_number(j))
+            if state != 'D':
+                row_count = add_pseudo_counts_nucleotide(row_count, pseudo_count)
             count_matrix.append(row_count)
+            add_pseudo_counts_transition(transitions[i][current_state], pseudo_count, i,
+                                         False if i != len(transitions) - 1 else True)
             for next_state, idx in zip(col_order, addition):
                 trans_state = f'{next_state}{i + idx}'
                 vector.append(format_number(transitions[i][current_state][trans_state]))
