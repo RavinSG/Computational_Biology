@@ -1,5 +1,6 @@
-import numpy as np
 from collections import defaultdict, Counter
+
+import numpy as np
 
 
 def hidden_path_prob(hidden_path, transition_prob):
@@ -21,25 +22,24 @@ def outcome_prob(string, hidden_path, emission_prob):
 def viterbi_algorithm(string, alphabet, states, transition_prob, emission_prob):
     alphabet = {alphabet[i]: i for i in range(len(alphabet))}
     num_states = len(states)
-    start_prob = np.ones((num_states, 1))
-    backtrack = np.zeros((num_states, 1)) - 1
+    start_prob = np.ones(num_states)
+    backtrack = np.zeros(num_states) - 1
     for i in range(len(string)):
-        state_values = start_prob * emission_prob[:, alphabet[string[i]]].reshape(num_states, 1)
-        next_states = state_values * transition_prob
-        next_backtrack = np.argmax(next_states, axis=1)
-        backtrack = np.hstack((backtrack, next_backtrack.reshape(num_states, 1)))
-        start_prob = next_states[np.arange(num_states), [next_backtrack]]
+        state_val = start_prob * emission_prob[:, alphabet[string[i]]]
+        edge_val = transition_prob * state_val.reshape(-1, 1)
+        pointers = np.argmax(edge_val, axis=0)
+        backtrack = np.vstack((backtrack, pointers))
+        start_prob = edge_val[pointers, np.arange(num_states)]
 
+    end_node = np.argmax(start_prob)
     backtrack = backtrack.astype(int)
-    state_transition = ""
-    # state = np.argmax(start_prob)
-    state = 3
-    while state != -1:
-        state_transition = states[state] + state_transition
-        state = backtrack[:, -1][state]
-        backtrack = backtrack[:, :-1]
+    path = ""
+    while end_node != -1:
+        path = states[end_node] + path
+        end_node = backtrack[-1][end_node]
+        backtrack = backtrack[:-1]
 
-    return state_transition[1:]
+    return path[:-1]
 
 
 def outcome_likelihood(string, alphabet, states, transition_prob, emission_prob):
@@ -387,3 +387,5 @@ def viterbi_learning(string, alphabet, states, transition_matrix, emission_matri
 
     if print_matrices:
         format_output(alphabet, states, transition_matrix, emission_matrix)
+
+    return transition_matrix, emission_matrix
