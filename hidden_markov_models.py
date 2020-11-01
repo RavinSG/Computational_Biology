@@ -58,7 +58,7 @@ def generate_hmm_profile(threshold, alphabet, alignments):
     alignments = np.array([list('A' + x + 'A') for x in alignments])
     num_seq, align_len = alignments.shape
     transitions = dict()
-    counts = dict()
+    counts = defaultdict(lambda: defaultdict(float))
 
     keep_cols = []
     for i in range(align_len):
@@ -144,7 +144,63 @@ def generate_hmm_profile(threshold, alphabet, alignments):
                     else:
                         column_transitions[f'D{col_num}'][f'D{col_num + 1}'] += del_pct
 
-        transitions[i] = column_transitions
+        transitions[col_num] = column_transitions
         i += 1
         col_num += 1
     return transitions, counts
+
+
+def format_number(num):
+    if num == 0:
+        return int(num)
+    else:
+        return round(num, 3)
+
+
+def print_profiles(transitions, counts, alphabet):
+    mapping = {j: i + 1 for i, j in enumerate(alphabet.split(" "))}
+    states = ["M", "D", "I"]
+    col_order = ["I", "M", "D"]
+    addition = [0, 1, 1]
+    header = ["", "S", "I0"]
+
+    transition_matrix = []
+    count_row = ['0'] * len(mapping)
+    count_matrix = [["S"] + count_row]
+    first_row = [0] + [transitions[0]["M0"]["I0"], transitions[0]["M0"]["M1"], transitions[0]["M0"]["D1"]] + [0] * (
+            3 * (len(transitions) - 1) - 1)
+    second_row = [0] + [transitions[0]["I0"]["I0"], transitions[0]["I0"]["M1"], transitions[0]["I0"]["D1"]] + [0] * (
+            3 * (len(transitions) - 1) - 1)
+    second_count = ["I0"] + count_row
+    for i, j in counts["I0"].items():
+        second_count[mapping[i]] = str(j)
+    count_matrix.append(second_count)
+
+    transition_matrix += [first_row, second_row]
+    for i in range(1, len(transitions)):
+        for state in states:
+            vector = [0] * (1 + 3 * i)
+            current_state = f'{state}{i}'
+            header.append(current_state)
+            row_count = [current_state] + count_row
+            for k, j in counts[current_state].items():
+                row_count[mapping[k]] = str(format_number(j))
+            count_matrix.append(row_count)
+            for next_state, idx in zip(col_order, addition):
+                trans_state = f'{next_state}{i + idx}'
+                vector.append(format_number(transitions[i][current_state][trans_state]))
+            vector += [0] * (3 * (len(transitions) - i) - 3)
+            transition_matrix.append(vector[:-1])
+
+    transition_matrix.append([0] * len(transition_matrix[0]))
+    header.append("E")
+    count_matrix.append(["E"] + count_row)
+    print("\t".join(header))
+
+    for j, i in enumerate(transition_matrix):
+        print("\t".join([header[j + 1]] + list(map(str, i))))
+    print('--------')
+
+    print("\t".join([""] + alphabet.split(" ")))
+    for i in count_matrix:
+        print("\t".join(i))
