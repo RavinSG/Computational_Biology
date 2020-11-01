@@ -23,7 +23,6 @@ def viterbi_algorithm(string, alphabet, states, transition_prob, emission_prob):
     num_states = len(states)
     start_prob = np.ones((num_states, 1))
     backtrack = np.zeros((num_states, 1)) - 1
-
     for i in range(len(string)):
         state_values = start_prob * emission_prob[:, alphabet[string[i]]].reshape(num_states, 1)
         next_states = state_values * transition_prob
@@ -33,7 +32,8 @@ def viterbi_algorithm(string, alphabet, states, transition_prob, emission_prob):
 
     backtrack = backtrack.astype(int)
     state_transition = ""
-    state = np.argmax(start_prob)
+    # state = np.argmax(start_prob)
+    state = 3
     while state != -1:
         state_transition = states[state] + state_transition
         state = backtrack[:, -1][state]
@@ -340,3 +340,50 @@ def align_sequence_to_profile(sequence, profile, nuc_prob):
 
     path.reverse()
     return " ".join(path)
+
+
+def format_output(alphabet, states, transition_matrix, emission_matrix):
+    print("\t".join([""] + states))
+    for i in range(len(states)):
+        print("\t".join([states[i]] + np.round(transition_matrix[i], 3).astype('str').tolist()))
+
+    print("--------")
+
+    print("\t".join([""] + alphabet))
+    for i in range(len(states)):
+        print("\t".join([states[i]] + np.round(emission_matrix[i], 3).astype('str').tolist()))
+
+
+def hmm_parameter_estimation(string, alphabet, path, states, print_matrices=False):
+    state_mapping = {i: j for j, i in enumerate(states)}
+    transition_matrix = np.zeros((len(states), len(states)))
+    for i, j in zip(path, path[1:]):
+        transition_matrix[state_mapping[i], state_mapping[j]] += 1
+
+    transition_matrix[np.sum(transition_matrix, axis=1) == 0] = 1
+    transition_matrix = transition_matrix / np.sum(transition_matrix, axis=1).reshape(-1, 1)
+
+    alp_mapping = {i: j for j, i in enumerate(alphabet)}
+    emission_matrix = np.zeros((len(states), len(alphabet)))
+
+    for i, j in zip(string, path):
+        emission_matrix[state_mapping[j], alp_mapping[i]] += 1
+
+    emission_matrix[np.sum(emission_matrix, axis=1) == 0] = 1
+    emission_matrix = emission_matrix / np.sum(emission_matrix, axis=1).reshape(-1, 1)
+
+    if print_matrices:
+        format_output(alphabet, states, transition_matrix, emission_matrix)
+
+    return transition_matrix, emission_matrix
+
+
+def viterbi_learning(string, alphabet, states, transition_matrix, emission_matrix, num_iter, print_matrices=False):
+    i = 0
+    while i < num_iter:
+        path = viterbi_algorithm(string, alphabet, states, transition_matrix, emission_matrix)
+        transition_matrix, emission_matrix = hmm_parameter_estimation(string, alphabet, path, states)
+        i += 1
+
+    if print_matrices:
+        format_output(alphabet, states, transition_matrix, emission_matrix)
