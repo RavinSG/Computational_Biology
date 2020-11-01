@@ -154,7 +154,7 @@ def format_number(num):
     if num == 0:
         return int(num)
     else:
-        return round(num, 3)
+        return num
 
 
 def add_pseudo_counts_transition(dict_row, pseudo_count, row_num, last_row):
@@ -169,17 +169,17 @@ def add_pseudo_counts_transition(dict_row, pseudo_count, row_num, last_row):
 
     for j, i in zip(col_order, addition):
         next_state = f"{j}{i + row_num}"
-        dict_row[next_state] = round((dict_row[next_state] + pseudo_count) / tot_prob, 3)
+        dict_row[next_state] = (dict_row[next_state] + pseudo_count) / tot_prob
 
 
 def add_pseudo_counts_nucleotide(counts, pseudo_count):
     prob = np.array(counts[1:]).astype(float)
     prob = (prob + pseudo_count)
 
-    return [counts[0]] + np.round((prob / sum(prob)), 3).astype(str).tolist()
+    return [counts[0]] + (prob / sum(prob)).astype(str).tolist()
 
 
-def print_profiles(transitions, counts, alphabet, pseudo_count=0.01):
+def update_profile(transitions, counts, alphabet, pseudo_count=0.01, print_profile=False):
     mapping = {j: i + 1 for i, j in enumerate(alphabet.split(" "))}
     states = ["M", "D", "I"]
     col_order = ["I", "M", "D"]
@@ -225,12 +225,118 @@ def print_profiles(transitions, counts, alphabet, pseudo_count=0.01):
     transition_matrix.append([0] * len(transition_matrix[0]))
     header.append("E")
     count_matrix.append(["E"] + count_row)
-    print("\t".join(header))
+    updated_count = defaultdict(lambda: defaultdict(float))
 
-    for j, i in enumerate(transition_matrix):
-        print("\t".join([header[j + 1]] + list(map(str, i))))
-    print('--------')
-
-    print("\t".join([""] + alphabet.split(" ")))
     for i in count_matrix:
-        print("\t".join(i))
+        updated_count[i[0]] = defaultdict(float, {k: float(j) for k, j in zip(alphabet.split(" "), i[1:])})
+    if print_profile:
+        print("\t".join(header))
+
+        for j, i in enumerate(transition_matrix):
+            print("\t".join([header[j + 1]] + list(map(str, i))))
+        print('--------')
+
+        print("\t".join([""] + alphabet.split(" ")))
+        for i in count_matrix:
+            print("\t".join(i))
+
+    return updated_count
+
+
+def align_sequence_to_profile(sequence, profile, nuc_prob):
+    sequence = sequence + "$"
+    num_cols = len(sequence)
+    num_rows = 3 * len(profile)
+    graph = np.zeros((num_rows, num_cols))
+
+    graph[0, 0] = 1
+    graph[0, 1] = 1 * profile[0]["M0"]["I0"] * nuc_prob["I0"][sequence[0]]
+    graph[1, 1] = 1 * profile[0]["M0"]["M1"] * nuc_prob["M1"][sequence[0]]
+    graph[2, 0] = 1 * profile[0]["M0"]["D1"]
+    backtrack = np.zeros((num_rows, num_cols, 2))
+
+    for i in range(1, len(profile) - 1):
+        col = 2 + 3 * (i - 1)
+        graph[col + 3, 0] = graph[col, 0] * profile[i][f"D{i}"][f"D{i + 1}"]
+        graph[col + 1, 1] = graph[col, 0] * profile[i][f"D{i}"][f"I{i}"] * nuc_prob[f"I{i}"][sequence[i]]
+        graph[col + 2, 1] = graph[col, 0] * profile[i][f"D{i}"][f"M{i + 1}"] * nuc_prob[f"M{i + 1}"][sequence[i]]
+        backtrack[col + 3, 0] = [col, 0]
+        backtrack[col + 1, 1] = [col, 0]
+        backtrack[col + 2, 1] = [col, 0]
+
+    for i in range(1, num_cols - 1):
+        for j in range(num_rows - 2):
+            level_num = j // 3
+            if j % 3 == 0:
+                val_1 = graph[j, i] * profile[level_num][f"I{level_num}"][f"I{level_num}"] * \
+                        nuc_prob[f"I{level_num}"][sequence[i]]
+                val_2 = graph[j, i] * profile[level_num][f"I{level_num}"][f"M{level_num + 1}"] * \
+                        nuc_prob[f"M{level_num + 1}"][sequence[i]]
+                val_3 = graph[j, i] * profile[level_num][f"I{level_num}"][f"D{level_num + 1}"]
+
+                if val_1 > graph[j, i + 1]:
+                    graph[j, i + 1] = val_1
+                    backtrack[j, i + 1] = [j, i]
+
+                if val_2 > graph[j + 1, i + 1]:
+                    graph[j + 1, i + 1] = val_2
+                    backtrack[j + 1, i + 1] = [j, i]
+
+                if val_3 > graph[j + 2, i]:
+                    graph[j + 2, i] = val_3
+                    backtrack[j + 2, i] = [j, i]
+
+            elif j % 3 == 1:
+                level_num += 1
+                val_1 = graph[j, i] * profile[level_num][f"M{level_num}"][f"I{level_num}"] * \
+                        nuc_prob[f"I{level_num}"][sequence[i]]
+                val_2 = graph[j, i] * profile[level_num][f"M{level_num}"][f"M{level_num + 1}"] * \
+                        nuc_prob[f"M{level_num + 1}"][sequence[i]]
+                val_3 = graph[j, i] * profile[level_num][f"M{level_num}"][f"D{level_num + 1}"]
+
+                if val_1 > graph[j + 2, i + 1]:
+                    graph[j + 2, i + 1] = val_1
+                    backtrack[j + 2, i + 1] = [j, i]
+
+                if val_2 > graph[j + 3, i + 1]:
+                    graph[j + 3, i + 1] = val_2
+                    backtrack[j + 3, i + 1] = [j, i]
+
+                if val_3 > graph[j + 4, i]:
+                    graph[j + 4, i] = val_3
+                    backtrack[j + 4, i] = [j, i]
+            else:
+                level_num += 1
+                val_1 = graph[j, i] * profile[level_num][f"D{level_num}"][f"I{level_num}"] * \
+                        nuc_prob[f"I{level_num}"][sequence[i]]
+                val_2 = graph[j, i] * profile[level_num][f"D{level_num}"][f"M{level_num + 1}"] * \
+                        nuc_prob[f"M{level_num + 1}"][sequence[i]]
+                val_3 = graph[j, i] * profile[level_num][f"D{level_num}"][f"D{level_num + 1}"]
+
+                if val_1 > graph[j + 1, i + 1]:
+                    graph[j + 1, i + 1] = val_1
+                    backtrack[j + 1, i + 1] = [j, i]
+                if val_2 > graph[j + 2, i + 1]:
+                    graph[j + 2, i + 1] = val_2
+                    backtrack[j + 2, i + 1] = [j, i]
+                if val_3 > graph[j + 3, i]:
+                    graph[j + 3, i] = val_3
+                    backtrack[j + 3, i] = [j, i]
+
+    # Should the node with the highest value or the final match node must be used ?
+    # end_node = [num_rows - 5 + (np.argmax(graph[:, -1][-5:-2])), num_cols - 1]
+    end_node = [num_rows - 5, num_cols - 1]
+
+    states = ["I", "M", "D"]
+    path = []
+
+    while not np.array_equal(end_node, [0, 0]):
+        level = end_node[0] // 3
+        state = end_node[0] % 3
+        if state != 0:
+            level += 1
+        path.append(f'{states[state]}{level}')
+        end_node = backtrack[end_node[0], end_node[1]].astype(int)
+
+    path.reverse()
+    return " ".join(path)
