@@ -10,7 +10,17 @@ from dna_replication import get_complement
 """
 
 
-def greedy_sort(perm):
+def greedy_sort(perm: list) -> tuple:
+    """
+    Solves the reversal problem by aligning each sorting the permutation in ascending order.
+    (+1 −7 +6 −10 +9 −8 +2 -11 -3 +5 +4)
+    (+1 -2 +8 -9 +10 -6 +7 -11 -3 +5 +4)
+    (+1 +2 +8 -9 +10 -6 +7 -11 -3 +5 +4)
+    ...
+
+    :param perm: A permutation of synteny alignments
+    :return: The aligned syntenies with the number of steps taken
+    """
     k = len(perm)
     perm = np.array(perm)
     steps = 0
@@ -28,7 +38,13 @@ def greedy_sort(perm):
     return perm, steps
 
 
-def count_breakpoints(perm):
+def count_breakpoints(perm: list) -> int:
+    """
+    Given a synteny alignment calculates the number of breakpoints in the alignment.
+
+    :param perm: A permutation of synteny alignments
+    :return: Number of breakpoints
+    """
     k = len(perm)
     points = 0
     for i in range(k - 1):
@@ -42,7 +58,14 @@ def count_breakpoints(perm):
     return points
 
 
-def genome_to_cycle(chromosome):
+def chromosome_to_cycle(chromosome: list) -> list:
+    """
+    Transform a single circular chromosome, Chromosome = (Chromosome_1, . . . , Chromosome_n) into a cycle represented
+    as a sequence of integers Nodes = (Nodes_1, . . . , Nodes_2n).
+
+    :param chromosome: A circular chromosome
+    :return: The node sequence of the cycle
+    """
     cycle = []
     k = len(chromosome)
     for i in range(1, k + 1):
@@ -55,7 +78,13 @@ def genome_to_cycle(chromosome):
     return cycle
 
 
-def cycle_to_genome(cycle):
+def cycle_to_chromosome(cycle: list) -> list:
+    """
+    Inverts the chromosome_to_cycle() and returns the original circular chromosome.
+
+    :param cycle: A node sequence
+    :return: The circular chromosome responsible for the cycle
+    """
     chromosome = []
     k = len(cycle)
     for i in range(0, k, 2):
@@ -67,10 +96,16 @@ def cycle_to_genome(cycle):
     return chromosome
 
 
-def coloured_edges(chromosomes):
+def coloured_edges(chromosomes: list) -> list:
+    """
+    Colored edges are defined as edges joining synteny blocks in a chromosome.
+
+    :param chromosomes: A list of chromosomes
+    :return: The coloured edges of the graph created by the choromosomes
+    """
     edges = []
     for chromosome in chromosomes:
-        cycle = genome_to_cycle(chromosome)
+        cycle = chromosome_to_cycle(chromosome)
         k = len(cycle)
         for i in range(1, k - 2, 2):
             edges.append((cycle[i], cycle[i + 1]))
@@ -80,13 +115,23 @@ def coloured_edges(chromosomes):
     return edges
 
 
-def graph_to_cycles(graph, breakpoint_graph=False):
+def graph_to_cycles(graph: list, breakpoint_graph=False) -> list:
+    """
+    Given the coloured edges of a graph, creates the circular chromosomes that are responsible for the coloured edges.
+    If the graph is in the form of a breakpoint graph the number of cycles reflects the break distance between the two
+    chromosomes.
+
+    :param graph: An edge list
+    :param breakpoint_graph: If true the breakpoint graph is generated
+    :return: The cycles present in the graph
+    """
     nodes = defaultdict(list)
 
     for i in graph:
         nodes[i[0]].append(i[1])
         nodes[i[1]].append(i[0])
 
+    # If the graph is the breakpoint graph, two ends of the synteny block is connected to each other
     if not breakpoint_graph:
         for i in nodes.keys():
             nodes[i].append(i + 1 if i % 2 == 1 else i - 1)
@@ -94,6 +139,7 @@ def graph_to_cycles(graph, breakpoint_graph=False):
     chromosomes = []
     prev_node = list(nodes.keys())[0]
     next_node = nodes[prev_node][0]
+    # Remove the edge by removing the ending and starting nodes from the possible transitions in respective nodes
     nodes[prev_node].remove(next_node)
     nodes[next_node].remove(prev_node)
     chromosome = [next_node]
@@ -106,6 +152,7 @@ def graph_to_cycles(graph, breakpoint_graph=False):
             nodes[next_node].remove(prev_node)
             nodes.pop(prev_node)
             prev_node = next_node
+        # When the starting node is reached there will be no outgoing edges
         except IndexError:
             chromosomes.append(chromosome)
             nodes.pop(prev_node)
@@ -121,7 +168,18 @@ def graph_to_cycles(graph, breakpoint_graph=False):
     return chromosomes
 
 
-def two_break_on_graph(graph, a, b, c, d):
+def two_break_on_graph(graph: list, a: int, b: int, c: int, d: int) -> list:
+    """
+    The two-break(a, b, c, d) is defined as replaces colored edges (a, b) and (c, d) in a genome graph with two new
+    colored edges (a, c) and (b, d).
+
+    :param graph: The graph the two break is performed on
+    :param a: End_1 of edge_1
+    :param b: End_2 of edge_1
+    :param c: End_1 of edge_2
+    :param d: End_2 of edge_2
+    :return: The updated graph
+    """
     if (a, b) in graph:
         graph.pop(graph.index((a, b)))
     else:
@@ -137,25 +195,51 @@ def two_break_on_graph(graph, a, b, c, d):
 
 
 def two_break_on_genome(genome, a, b, c, d):
+    """
+    Same as two_break_on_graph, but defined on the genome.
+
+    :param genome: The genome the two break should be carried out on
+    :param a: End_1 of edge_1
+    :param b: End_2 of edge_1
+    :param c: End_1 of edge_2
+    :param d: End_2 of edge_2
+    :return: The updated genome
+    """
     graph = coloured_edges(genome)
     graph = two_break_on_graph(graph, a, b, c, d)
     cycles = graph_to_cycles(graph)
     genome = []
     for cycle in cycles:
-        genome.append(cycle_to_genome(cycle))
+        genome.append(cycle_to_chromosome(cycle))
     return genome
 
 
-def break_distance(genomes):
+def break_distance(genomes: list) -> int:
+    """
+    Calculated the break distance between two genomes P and Q. The break distance between P and Q is defines as the
+    length of the shortest sequence of 2-breaks transforming genome P into genome Q.
+
+    A 2-break is defined as the removal of two edges on a genome graph and replacing them with new two edges on the same
+    four nodes.
+
+    :param genomes: A list of genomes P and Q
+    :return: The break distance between the two genomes
+    """
     edges = coloured_edges(genomes)
     graph = graph_to_cycles(edges, breakpoint_graph=True)
-    print(graph)
-    distance = len(edges) / 2 - len(graph)
+    distance = int(len(edges) / 2 - len(graph))
 
     return distance
 
 
-def two_break_sorting(genomes):
+def two_break_sorting(genomes: list) -> list:
+    """
+    Given two genomes with circular chromosomes on the same synteny blocks, generates the sequence of genomes resulting
+    from applying a shortest sequence of 2-breaks transforming one genome into the other.
+
+    :param genomes: A list of genomes P and Q
+    :return: The evolution history of one genome transforming to another
+    """
     edges = coloured_edges(genomes)
     graph = graph_to_cycles(edges, breakpoint_graph=True)
     genome_1 = [genomes[0]]
@@ -174,7 +258,16 @@ def two_break_sorting(genomes):
     return genome_evolution
 
 
-def shared_k_mers(k, strand_1, strand_2):
+def shared_k_mers(k: int, strand_1: str, strand_2: str) -> list:
+    """
+    A shared k-mer is defined as a k-mer shared by two genomes if either the k-mer or its reverse complement appears in
+    each genome.
+
+    :param k: Length of the k-mer
+    :param strand_1: Chromosome 1
+    :param strand_2: Chromosome 2
+    :return: The positions of the shared k-mers
+    """
     comp_2 = get_complement(strand_2, True)
     k_mer_dict = defaultdict(list)
     positions = []
