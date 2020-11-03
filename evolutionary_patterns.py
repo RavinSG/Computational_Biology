@@ -5,7 +5,17 @@ from params import *
 from dna_replication import hamming_distance
 
 
-def list_to_dict(adjacency_list, weighted=True):
+def list_to_dict(adjacency_list: list, weighted=True) -> tuple:
+    """
+    Converts an adjacency list of an graph into a dictionary with first node of the edge as the key and the second node
+    as another dictionary where the node is the key and the edge weight is the value. If the edges aren't weighted the
+    value is set to 0. If the edges represent a directed graph, a dictionary containing the directed edges will also be
+    returned.
+
+    :param adjacency_list: A list of edges
+    :param weighted: True if edges are weighted
+    :return: The node dictionaries of the directed and undirected graphs
+    """
     node_dict = defaultdict(dict)
     directed = defaultdict(dict)
     if weighted:
@@ -28,7 +38,13 @@ def list_to_dict(adjacency_list, weighted=True):
     return node_dict, directed
 
 
-def calculate_leaf_distance(adjacency_list):
+def calculate_leaf_distance(adjacency_list: list) -> np.ndarray:
+    """
+    Calculate the distance between all the nodes using the Floyd-Warshall algorithm.
+
+    :param adjacency_list: List of edges
+    :return: A matrix containing the distance between leaves
+    """
     node_dict = defaultdict(dict)
     for edge in adjacency_list:
         parent = edge[0]
@@ -54,7 +70,14 @@ def calculate_leaf_distance(adjacency_list):
     return distances[leaves][:, leaves]
 
 
-def limb_length(distances, leaf):
+def limb_length(distances: np.ndarray, leaf: int) -> float:
+    """
+    Given a distance matrix between leaves, finds the length of the limb connecting leaf to the parent tree.
+
+    :param distances: A distance matrix
+    :param leaf: The node limb length should be calculated
+    :return: The limb length
+    """
     num_nodes = len(distances)
     length = np.inf
 
@@ -70,6 +93,14 @@ def limb_length(distances, leaf):
 
 
 def find_path_nodes(matrix, n, limb_len):
+    """
+    Finds two nodes (i, j) such that they are located in two different subtrees that is joined by the parent node of n.
+
+    :param matrix: A distance matrix
+    :param n: Node dividing the two subtrees
+    :param limb_len: Limb length of node n
+    :return: Two nodes in the graph
+    """
     for i in range(n):
         for j in range(n):
             if matrix[i][j] == matrix[i][n] + matrix[n][j] - limb_len * 2:
@@ -78,10 +109,14 @@ def find_path_nodes(matrix, n, limb_len):
     return -1
 
 
-def get_path(node_1, node_2, graph):
+def get_path(node_1: int, node_2: int, graph: dict) -> list:
+    """
+    Finds the path between two nodes in a tree graph
+    """
     visited = []
     stack = [node_1]
     parents = {}
+
     while stack:
         node = stack.pop()
         for child in graph[node]:
@@ -98,27 +133,39 @@ def get_path(node_1, node_2, graph):
                     path.append(child)
                 path.reverse()
                 return path
+
         visited.append(node)
 
 
-def additive_phylogeny(matrix, num_nodes):
-    n = len(matrix) - 1
+def additive_phylogeny(distance_matrix: np.ndarray, num_nodes: int) -> tuple:
+    """
+    Using the distance matrix, creates a phylogeny tree using a bottom up approach. All internal nodes will be labeled
+    with integers starting from the number of leaves in the tree.
+
+    :param distance_matrix: Distance matrix between leaves
+    :param num_nodes: Number of leave nodes
+    :return: The phylogeny tree
+    """
+    n = len(distance_matrix) - 1
     if n == 1:
-        return {0: {1: matrix[0][1]}, 1: {0: matrix[1][0]}}, num_nodes
+        return {0: {1: distance_matrix[0][1]}, 1: {0: distance_matrix[1][0]}}, num_nodes
     else:
-        limb_len = limb_length(matrix, n)
+        limb_len = limb_length(distance_matrix, n)
 
-        tree, num_nodes = additive_phylogeny(matrix[:-1, :][:, :-1], num_nodes)
+        # Select the final node and trim the tree
+        tree, num_nodes = additive_phylogeny(distance_matrix[:-1, :][:, :-1], num_nodes)
 
-        i, j = find_path_nodes(matrix, n, limb_len)
+        i, j = find_path_nodes(distance_matrix, n, limb_len)
         path = get_path(i, j, tree)
         dist = 0
-        break_dist = matrix[i, n] - limb_len
+        break_dist = distance_matrix[i, n] - limb_len
+        # Find the location to connect the leaf to the parent tree
         for p in range(len(path) - 1):
             cur_node = path[p]
             next_node = path[p + 1]
             edge_distance = tree[cur_node][next_node]
             dist += edge_distance
+            # If no node is present at the location break the edge and insert a node
             if dist > break_dist:
                 tree[cur_node].pop(next_node)
                 tree[next_node].pop(cur_node)
@@ -130,6 +177,7 @@ def additive_phylogeny(matrix, num_nodes):
                 tree[next_node][num_nodes] = dist - break_dist
                 num_nodes += 1
                 break
+            # Else add it to the existing node
             elif dist == break_dist:
                 tree[next_node][n] = limb_len
                 tree[n] = {next_node: limb_len}
@@ -138,21 +186,31 @@ def additive_phylogeny(matrix, num_nodes):
         return tree, num_nodes
 
 
-def upgma(distances, n):
-    clusters = [(x,) for x in range(n)]
-    graph = {(x,): [0] for x in range(n)}
-    max_val = distances.max() + 1
-    np.fill_diagonal(distances, max_val)
+def upgma(distance_matrix: np.ndarray, num_nodes: int) -> dict:
+    """
+    Using the distance matrix, creates a phylogeny tree using UPGMA (Unweighted Pair Group Method with Arithmetic Mean).
+    All internal nodes will be labeled with integers starting from the number of leaves in the tree.
 
+    :param distance_matrix: Distance matrix between leaves
+    :param num_nodes: Number of leave nodes
+    :return: The phylogeny tree
+    """
+    clusters = [(x,) for x in range(num_nodes)]
+    graph = {(x,): [0] for x in range(num_nodes)}
+    max_val = np.max(distance_matrix) + 1
+    np.fill_diagonal(distance_matrix, max_val)
+
+    # Run the algorithm till all nodes are clustered to one large cluster
     while len(clusters) > 1:
-        i, j = np.unravel_index(np.argmin(distances), distances.shape)
+        i, j = np.unravel_index(np.argmin(distance_matrix), distance_matrix.shape)
         c_i = len(clusters[i])
         c_j = len(clusters[j])
-        d_i_j = distances[i, j]
+        d_i_j = distance_matrix[i, j]
 
-        col = (c_i * distances[:, i] + c_j * distances[:, j]) / (c_i + c_j)
-        distances = np.delete(distances, [i, j], axis=0)
-        distances = np.delete(distances, [i, j], axis=1)
+        # Calculate the distance between the new cluster and the existing clusters using the average
+        col = (c_i * distance_matrix[:, i] + c_j * distance_matrix[:, j]) / (c_i + c_j)
+        distance_matrix = np.delete(distance_matrix, [i, j], axis=0)
+        distance_matrix = np.delete(distance_matrix, [i, j], axis=1)
 
         new_cluster = clusters[i] + clusters[j]
         graph[new_cluster] = [d_i_j / 2]
@@ -166,15 +224,20 @@ def upgma(distances, n):
             clusters = clusters[:i] + clusters[i + 1:j] + clusters[j + 1:]
             col = np.concatenate((col[:i], col[i + 1:j], col[j + 1:]))
 
-        distances = np.hstack((distances, col.reshape(-1, 1)))
-        distances = np.vstack((distances, np.append(col, max_val).reshape(1, -1)))
+        distance_matrix = np.hstack((distance_matrix, col.reshape(-1, 1)))
+        distance_matrix = np.vstack((distance_matrix, np.append(col, max_val).reshape(1, -1)))
         clusters.append(new_cluster)
-        n = n + 1
+        num_nodes = num_nodes + 1
 
     return graph
 
 
-def print_edge_distances(graph, leaf_count):
+def print_edge_distances(graph: dict, leaf_count: int):
+    """
+    Print all the edge distances of the graph in the format,
+        node_1 -> node_2:distance
+    It's assumed that leaves represent nucleotide sequences of length larger than 1
+    """
     mapping = dict()
     for i in graph:
         if len(i) == 1:
@@ -196,14 +259,27 @@ def print_edge_distances(graph, leaf_count):
             print(f"{i}->{key}:{value}")
 
 
-def neighbour_join(distances, nodes, k):
-    n = len(distances)
+def neighbour_join(distance_matrix: np.ndarray, nodes: list, num_leaves: int) -> dict:
+    """
+    Given an additive distance matrix, neighbour_join finds a pair of neighboring leaves and substitutes them by a
+    single leaf, thus reducing the size of the tree. neighbour_join can thus recursively construct a tree fitting the
+    additive matrix.
+
+    Although finding a minimum element in a distance matrix D is not guaranteed to yield a pair of neighbors in the
+    tree, the matrix is transformed into a neighbour-joining-matrix.
+
+    :param distance_matrix: Distance matrix between leaves
+    :param nodes: A list of nodes
+    :param num_leaves: Number of leaves
+    :return: The neighbour joined tree
+    """
+    n = len(distance_matrix)
     if n == 2:
-        dist = distances.max()
+        dist = np.array(distance_matrix)
         return {nodes[0]: {nodes[1]: dist}, nodes[1]: {nodes[0]: dist}}
     else:
-        total_distance = distances.sum(axis=1)
-        d_star = ((n - 2) * distances - total_distance) - total_distance.reshape(-1, 1)
+        total_distance = distance_matrix.sum(axis=1)
+        d_star = ((n - 2) * distance_matrix - total_distance) - total_distance.reshape(-1, 1)
         max_val = max(d_star.max() + 1, 0)
         np.fill_diagonal(d_star, max_val)
         i, j = np.unravel_index(np.argmin(d_star), d_star.shape)
@@ -211,29 +287,44 @@ def neighbour_join(distances, nodes, k):
         node_j = nodes[j]
         nodes.remove(node_i)
         nodes.remove(node_j)
-        d_min = distances[i][j]
+        d_min = distance_matrix[i][j]
         delta = (total_distance[i] - total_distance[j]) / (n - 2)
 
         limb_i = (d_min + delta) / 2
         limb_j = (d_min - delta) / 2
 
-        distance_k = np.delete((distances[:, j] + distances[:, i] - d_min) / 2, [i, j])
-        distances = np.delete(distances, [i, j], axis=0)
-        distances = np.delete(distances, [i, j], axis=1)
+        distance_k = np.delete((distance_matrix[:, j] + distance_matrix[:, i] - d_min) / 2, [i, j])
+        distance_matrix = np.delete(distance_matrix, [i, j], axis=0)
+        distance_matrix = np.delete(distance_matrix, [i, j], axis=1)
 
-        distances = np.hstack((distances, distance_k.reshape(-1, 1)))
-        distances = np.vstack((distances, np.append(distance_k, max_val).reshape(1, -1)))
-        nodes.append(k + 1)
-        tree = neighbour_join(distances, nodes, k + 1)
+        distance_matrix = np.hstack((distance_matrix, distance_k.reshape(-1, 1)))
+        distance_matrix = np.vstack((distance_matrix, np.append(distance_k, max_val).reshape(1, -1)))
+        nodes.append(num_leaves + 1)
+        tree = neighbour_join(distance_matrix, nodes, num_leaves + 1)
         for x, y in zip([node_i, node_j], [limb_i, limb_j]):
-            tree[k + 1][x] = y
-            tree[x] = {k + 1: y}
+            tree[num_leaves + 1][x] = y
+            tree[x] = {num_leaves + 1: y}
 
         return tree
 
 
-def simple_parsimony(graph, node, char_num, s_k_values):
-    # graph should be in the format of {parent_1:{child_1,child_2}, parent_2:{child_3,child_4} ,...}
+def small_parsimony(graph: dict, node, char_num: int, s_k_values: dict) -> tuple:
+    """
+    Calculates the s_k values of nodes of a tree. Where s_k value is defined as,
+            s_k(v) = min all symbols i{s_i(DAUGHTER(v)) + d_i, k} + min all symbols j{s_j(SON(v)) + d_j, k}
+
+    The graph should be in the format of: {
+                                            parent_1: {child_1,child_2},
+                                            parent_2: {child_3,child_4},
+                                            ...
+                                        }
+
+    :param graph: The graph in a dictionary format
+    :param node: Node parsimony score should
+    :param char_num: Position of the sequence
+    :param s_k_values: s_k value of the node
+    :return: The s_k values of all nodes
+    """
     if not node.isdigit():
         s_k = np.ones(4) * np.inf
         s_k[STR_TO_NUM[node[char_num]]] = 0
@@ -243,7 +334,7 @@ def simple_parsimony(graph, node, char_num, s_k_values):
     else:
         s_k = 0
         for child in graph[node]:
-            child_sk, s_k_values = simple_parsimony(graph, child, char_num, s_k_values)
+            child_sk, s_k_values = small_parsimony(graph, child, char_num, s_k_values)
             alpha = np.ones((4, 4))
             np.fill_diagonal(alpha, 0)
             s_k += (child_sk + alpha).min(axis=1)
@@ -251,7 +342,15 @@ def simple_parsimony(graph, node, char_num, s_k_values):
         return s_k, s_k_values
 
 
-def backtrack_parsimony(graph, s_k_values, node):
+def backtrack_parsimony(graph: dict, s_k_values: dict, node) -> dict:
+    """
+    Converts the values of the s_k_values dictionary to characters that minimizes the parsimony score of the tree.
+
+    :param graph: The graph in a dictionary format
+    :param s_k_values: s_k value of the node
+    :param node: Node a character should be assigned
+    :return: Character assigned tree
+    """
     parent_c = s_k_values[node]
     if node.isdigit():
         for child in graph[node]:
@@ -266,10 +365,22 @@ def backtrack_parsimony(graph, s_k_values, node):
     return s_k_values
 
 
-def create_character_sequence(graph, root, leaf_len):
+def create_character_sequence(graph: dict, root, leaf_len: int) -> tuple:
+    """
+    Given a rooted binary tree with each leaf labeled by a string of length m, returns a labeling of all other nodes of
+    the tree by strings of length m that minimizes the tree’s parsimony score.
+
+    The parsimony score of a tree is the sum of the lengths of its edges, where the length of an edge corresponds to the
+    hamming distance between the nodes.
+
+    :param graph: The graph in a dictionary format
+    :param root: Root node of the graph
+    :param leaf_len: Length of the sequence in the leaf node
+    :return: Rooted binary tree with the lowest parsimony score
+    """
     trees = []
     for i in range(leaf_len):
-        trees.append(simple_parsimony(graph, root, i, {})[1])
+        trees.append(small_parsimony(graph, root, i, {})[1])
 
     strings = defaultdict(str)
     score = 0
@@ -286,8 +397,13 @@ def create_character_sequence(graph, root, leaf_len):
     return score, strings
 
 
-def print_all_edges(graph, string_mapping, skip_root=None):
+def print_all_edges(graph: dict, string_mapping: dict, skip_root=None):
+    """
+    Given a tree and a node to string mapping, prints all the nodes in the format of,
+                    node_1->node_2:hamming_distance(node_1,node_2)
+    """
     nodes = [list(graph)[0]]
+    # For an un-rooted binary tree, skips printing the pseudo root node
     if skip_root is not None:
         nodes = [x for x in graph[skip_root]]
         node_1 = string_mapping[nodes[0]]
@@ -307,7 +423,10 @@ def print_all_edges(graph, string_mapping, skip_root=None):
             print(f"{child}->{parent}:{dst}")
 
 
-def insert_first_root(adjacency_list):
+def insert_first_root(adjacency_list: list) -> tuple:
+    """
+    Given an edge lest of an un-rooted binary tree, arbitrary pick an edge and root the tree breaking the edge.
+    """
     new_root = str(len(adjacency_list) // 2 + 1)
     old_edge = adjacency_list[0]
     node_1, node_2 = old_edge.split('->')
@@ -319,8 +438,10 @@ def insert_first_root(adjacency_list):
     return adjacency_list, new_root
 
 
-def directed_binary_tree(adjacency_list, root=None):
-    # converts an undirected binary to a directed tree starting fro the node
+def directed_binary_tree(adjacency_list, root=None) -> tuple:
+    """
+    Converts an undirected rooted binary to a directed tree and returns the directed graph with the root node.
+    """
     tree, _ = list_to_dict(adjacency_list, False)
     if root is None:
         for key, value in tree.items():
@@ -343,35 +464,29 @@ def directed_binary_tree(adjacency_list, root=None):
     return parent, root
 
 
-def move_root(parent_graph, old_root, leaf_len):
-    best_tree = deepcopy(parent_graph)
-    score, str_mapping = create_character_sequence(parent_graph, old_root, leaf_len)
-    best_tree = [best_tree, str_mapping]
-
-    left_node = list(parent_graph[old_root])[0]
-    right_node = list(parent_graph[old_root])[1]
-
-    parent_graph.pop(old_root)
-    left_parents = deepcopy(parent_graph)
-    right_parents = deepcopy(parent_graph)
-    dirs = ['left', 'right']
-
-    for child, direction in zip(parent_graph[left_node], dirs):
-        result = move_sub_tree(left_parents, old_root, child, left_node, right_node, direction, leaf_len)
-        if result[0] < score:
-            score = result[0]
-            best_tree = result[1]
-
-    for child, direction in zip(parent_graph[right_node], dirs):
-        result = move_sub_tree(right_parents, old_root, child, right_node, left_node, direction, leaf_len)
-        if result[0] < score:
-            score = result[0]
-            best_tree = result[1]
-
-    return score, best_tree
-
-
 def move_sub_tree(parents, root, start_node, parent_node, sibling, direction, leaf_len):
+    """
+    Moves the root from parent of the node, to the edge between the node and it's children and create a tree for each
+    edge. Recursively traverse all the nodes switching the root to the nodes children. This will generate all possible
+    rooted trees with only O(num_nodes) time complexity.
+
+             root                          new_root                                new_root
+              |                            /    \                                  /    \
+              |                           /      \                                /      \
+        parent_node        --->      child_1   parent_node        and      parent_node   child_2
+           /    \                                  \                           /
+          /      \                                  \                         /
+      child_1  child_2                            child_2                 child_1
+
+    :param parents: Parent dictionary of the graph
+    :param root: Root of the previous tree
+    :param start_node: Node on the other side of the end the root should be passed onto
+    :param parent_node: Child of the current root node
+    :param sibling: Other child of the root node
+    :param direction: The direction the root is traversing
+    :param leaf_len: Length of the sequence in the leaf node
+    :return: The tree with the lowest parsimony score in the rooted sub-tree
+    """
     if start_node in parents:
         l_child, r_child = parents[start_node]
         if direction == 'left':
@@ -409,6 +524,7 @@ def move_sub_tree(parents, root, start_node, parent_node, sibling, direction, le
             lowest_idx = int(np.argmin(scores))
             return scores[lowest_idx], trees[lowest_idx]
     else:
+        # if the child is a leaf node stop the traversal
         node_parents = deepcopy(parents)
         node_parents[parent_node].pop(start_node)
         node_parents[root][start_node] = 0
@@ -418,7 +534,62 @@ def move_sub_tree(parents, root, start_node, parent_node, sibling, direction, le
         return score, [node_parents, str_mapping]
 
 
-def nearest_neighbours(edge, adjacency_list):
+def move_root(parent_graph: dict, old_root, leaf_len: int) -> tuple:
+    """
+    Given a directed rooted binary tree with a pseudo node, where the position of the root in the tree is unknown,
+    assign the root to each edge, apply small-parsimony to the resulting tree.
+
+    Out of all the created trees find the labeling of all other nodes that minimizes the parsimony score and return the
+    un-rooted tree relevant for the lowest score.
+
+    :param parent_graph: Parent dictionary of the graph
+    :param old_root: Root of the graph
+    :param leaf_len: Length of the sequence in the leaf node
+    :return: The minimum parsimony score and the relevant un-rooted tree
+    """
+    best_tree = deepcopy(parent_graph)
+    score, str_mapping = create_character_sequence(parent_graph, old_root, leaf_len)
+    best_tree = [best_tree, str_mapping]
+
+    left_node = list(parent_graph[old_root])[0]
+    right_node = list(parent_graph[old_root])[1]
+
+    parent_graph.pop(old_root)
+    left_parents = deepcopy(parent_graph)
+    right_parents = deepcopy(parent_graph)
+    dirs = ['left', 'right']
+
+    # Since there are four directions the root can travel, find the best score of each direction
+    for child, direction in zip(parent_graph[left_node], dirs):
+        result = move_sub_tree(left_parents, old_root, child, left_node, right_node, direction, leaf_len)
+        if result[0] < score:
+            score = result[0]
+            best_tree = result[1]
+
+    for child, direction in zip(parent_graph[right_node], dirs):
+        result = move_sub_tree(right_parents, old_root, child, right_node, left_node, direction, leaf_len)
+        if result[0] < score:
+            score = result[0]
+            best_tree = result[1]
+
+    return score, best_tree
+
+
+def nearest_neighbours(edge: set, adjacency_list: list) -> list:
+    """
+    The neighbours of an edge is defined as follows. An internal edge is an between any two nodes which are not leaves.
+
+    For a given internal edge (a, b), denote the remaining nodes adjacent to a as w and x; and denote the remaining
+    nodes adjacent to b as y and z.
+    First neighbour is obtained by removing edges (a, x) and (b, y) and replacing them with (a, y) and (b, x).
+    Second neighbour is obtained by  removing edges (a, x) and (b, z) and replacing them with (a, z) and (b, x)
+
+    The adjacency list should be in the format of [node_1->node_2, node_2->node_3, node_2->node_4,...]
+
+    :param edge: An internal edge of the graph
+    :param adjacency_list: List of edges in the graph
+    :return: The two neighbours respective to the edge
+    """
     temp_list = adjacency_list.copy()
     node_1, node_2 = edge
     neigh_1 = []
@@ -434,6 +605,7 @@ def nearest_neighbours(edge, adjacency_list):
             if nodes[1] != node_1:
                 neigh_2.append(nodes[1])
 
+    # Since the graph is undirected, edges in both directions should be deleted
     for i in neigh_1:
         temp_list.remove(f"{i}->{node_1}")
         temp_list.remove(f"{node_1}->{i}")
@@ -462,7 +634,10 @@ def nearest_neighbours(edge, adjacency_list):
     return neighbours
 
 
-def dict_to_list(graph, un_root=None):
+def dict_to_list(graph: dict, un_root=None) -> list:
+    """
+    Converts a graph from dictionary format to an adjacency list.
+    """
     adjacency_list = []
     if un_root is not None:
         children = list(graph.pop(un_root))
@@ -476,7 +651,26 @@ def dict_to_list(graph, un_root=None):
     return adjacency_list
 
 
-def nearest_neighbour_interchange(adjacency_list, leaf_len, print_intermediate=False):
+def nearest_neighbour_interchange(adjacency_list: list, leaf_len: int, print_intermediate=False) -> tuple:
+    """
+    Tries to find a solution for the large parsimony problem using the nearest neighbour interchange as a heuristic.
+    Initially assigns input strings to arbitrary leaves of the tree, assigns strings to the internal nodes of the tree
+    by solving the Small Parsimony Problem in an un-rooted tree, and then moves to a nearest neighbor that provides the
+    best improvement in the parsimony score.
+
+    At each iteration, the algorithm explores all internal edges of a tree and generates all nearest neighbor
+    interchanges for each internal edge. For each of these nearest neighbors, the algorithm solves the Small Parsimony
+    Problem to reconstruct the labels of the internal nodes and computes the parsimony score.
+
+    If a nearest neighbor with smaller parsimony score is found, then the algorithm. selects the one with smallest
+    parsimony score and iterates again; otherwise, the algorithm terminates.
+
+    :param adjacency_list: Edge list of the graph
+    :param leaf_len: Length of the sequence in the leaf node
+    :param print_intermediate: If true, prints the best after each iteration
+    :return: A tuple containing the best parsimony score, the tree responsible for the best score, the character
+    sequences of internal nodes and the adjacency list of the graph
+    """
     best_score = np.inf
     best_graph = None
     best_mapping = None
