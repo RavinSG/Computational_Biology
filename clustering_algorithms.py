@@ -2,7 +2,15 @@ import numpy as np
 from collections import defaultdict
 
 
-def farthest_first_travel(data_points, k):
+def farthest_first_travel(data_points: list, k: int) -> np.ndarray:
+    """
+    Selects an arbitrary point in data as the first center and iteratively adds a new center as the point in data that
+    is farthest from the centers chosen so far.
+
+    :param data_points: A list of data points
+    :param k: Number of centers
+    :return: A list of centers
+    """
     data_points = np.array(data_points)
     centers = np.array([data_points[0]])
 
@@ -14,12 +22,18 @@ def farthest_first_travel(data_points, k):
     return centers
 
 
-def max_distance(data_points, centers):
+def max_distance(data_points: np.ndarray, centers: np.ndarray) -> np.ndarray:
+    """
+    Finds the maximum distance to the closest center from all nodes
+    """
     return np.max(
         np.min(np.sum((data_points - np.array(centers).reshape((len(centers), 1, -1))) ** 2, axis=2), axis=0) ** 0.5)
 
 
-def calculate_distortion(data_points, centers):
+def calculate_distortion(data_points: np.ndarray, centers: np.ndarray) -> float:
+    """
+    Calculates the mean squared distance from each data point to its nearest center.
+    """
     data_points = np.array(data_points)
     centers = np.array(centers).reshape((len(centers), 1, -1))
 
@@ -27,7 +41,16 @@ def calculate_distortion(data_points, centers):
     return np.min(distances, axis=0).sum() / len(data_points)
 
 
-def k_means_initializer(data_points: np.ndarray, k):
+def k_means_initializer(data_points: np.ndarray, k: int) -> np.ndarray:
+    """
+    Chooses each point at random in such a way that distant points are more likely to be chosen than nearby points. The
+    probability of selecting a center from data points is proportional to the squared distance of data points from the
+    centers already chosen.
+
+    :param data_points: A list of data points
+    :param k: Number of centers
+    :return: List of centers
+    """
     centers = np.array([data_points[np.random.choice(len(data_points))]])
 
     while len(centers) < k:
@@ -38,7 +61,15 @@ def k_means_initializer(data_points: np.ndarray, k):
     return centers.reshape((k, 1, -1))
 
 
-def k_means_clustering(data_points, k, initializer='random'):
+def k_means_clustering(data_points: list, k: int, initializer='random') -> np.ndarray:
+    """
+    Clusters the dataset using k-means clustering into k clusters.
+
+    :param data_points: A list of data points
+    :param k: Number of clusters
+    :param initializer: Method to sample the initial centers
+    :return: Centers of the clusters
+    """
     data_points = np.array(data_points)
     if initializer == 'random':
         while True:
@@ -67,20 +98,43 @@ def k_means_clustering(data_points, k, initializer='random'):
     return np.round(centers.reshape(k, -1), 3)
 
 
-def hidden_matrix_gravity(data_points, clusters):
+def hidden_matrix_gravity(data_points: np.ndarray, clusters: np.ndarray) -> np.ndarray:
+    """
+    Returns a len(clusters) x len(data) responsibility matrix for which [i, j] is the pull of center i on data point j.
+    This pull is computed according to the Newtonian inverse-square law of gravitation
+    """
     hidden_matrix = 1 / np.sum((data_points - clusters) ** 2, axis=2)
     hidden_matrix = hidden_matrix / hidden_matrix.sum(axis=0)
     return hidden_matrix
 
 
-def hidden_matrix_partition(data_points, clusters, beta):
+def hidden_matrix_partition(data_points: np.ndarray, clusters: np.ndarray, beta: float):
+    """
+    Returns a len(clusters) x len(data) responsibility matrix for which [i, j] is the partition value of center i on the
+    data point j. The partition value is calculated using e to the power of -(distance to cluster i * stiffness
+    parameter) divide by the sum across all clusters.
+
+    The stiffness parameter is denoted by beta.
+    """
     hidden_matrix = np.exp(-(np.sum((data_points - clusters) ** 2, axis=2) ** 0.5 * beta))
     hidden_matrix = hidden_matrix / hidden_matrix.sum(axis=0)
 
     return hidden_matrix
 
 
-def soft_k_means(data_points, k, initializer='random', beta=None, num_iter=100):
+def soft_k_means(data_points: list, k: int, initializer='random', beta: float = None, num_iter=100) -> np.ndarray:
+    """
+    Initialize the algorithm with random centers, then assign each data point a responsibility for each cluster, where
+    higher responsibilities correspond to stronger cluster membership. Then using the responsibilities of each data
+    point create new clusters. Repeat process for num_iter iterations.
+
+    :param data_points: A list of data points
+    :param k: Number of clusters
+    :param initializer: Method to sample the initial centers
+    :param beta: Stiffness parameter
+    :param num_iter: Number of iterations
+    :return: Centers of the soft clusters
+    """
     data_points = np.array(data_points)
     low, high = np.min(data_points), np.max(data_points)
     if initializer == 'random':
@@ -90,7 +144,7 @@ def soft_k_means(data_points, k, initializer='random', beta=None, num_iter=100):
     else:
         clusters = data_points[:k]
 
-    clusters = clusters.reshape(k, 1, -1)
+    clusters = clusters.reshape((k, 1, -1))
     i = 0
     while i < num_iter:
         hidden_matrix = hidden_matrix_partition(data_points, clusters, beta).reshape(k, -1, 1)
@@ -101,7 +155,17 @@ def soft_k_means(data_points, k, initializer='random', beta=None, num_iter=100):
     return clusters
 
 
-def diff(s_snips, t_snips):
+def diff(s_snips: np.ndarray, t_snips: np.ndarray) -> float:
+    """
+    Given two sets of snips S' and T, returns how well the collection of snips S’ explains a set T.
+    Diff between two snips i and j is defined as follows.
+
+    diff (s, t) = # of pairs of individuals (i, j) such that (s_i != s_j) and (t_i != t_j) /
+                                # of pairs of (i, j) such that(t_i != t_j)
+
+    The diff between the snip set S and a single snip t is defines as there is some SNP in S’ that explains this
+    difference in t. This is then summed across all snips in T to calculate diff(S', T)
+    """
     num = len(t_snips[0])
     t_count = 0
     s_count = 0
@@ -119,7 +183,17 @@ def diff(s_snips, t_snips):
     return s_count / t_count
 
 
-def randomized_haplotype_search(s_snips, t_snips, k):
+def randomized_haplotype_search(s_snips: np.ndarray, t_snips: np.ndarray, k: int) -> np.ndarray:
+    """
+    Start with a random collection of k SNPs in S. At each step of the algorithm, every possible replacement of one SNP
+    in the current collection with some SNP not in the collection and update S’ to be the set that maximizes Diff(S’, T)
+    among all those considered. Repeat process till the score stops increasing.
+
+    :param s_snips: Set of snips S
+    :param t_snips: Set of snips T
+    :param k: Number of snips in the collection
+    :return: The list of snips in set S that explains T the most
+    """
     s_snips = np.array(s_snips)
     t_snips = np.array(t_snips)
     snip_idx = np.random.choice(len(s_snips), k)
@@ -145,8 +219,15 @@ def randomized_haplotype_search(s_snips, t_snips, k):
     return best_snips
 
 
-def verify_compatibility(snip_matrix: np.ndarray):
-    # returns the lex sorted transposed snip matrix
+def verify_compatibility(snip_matrix: np.ndarray) -> np.ndarray:
+    """
+    Given a snip matrix checks whether all the columns in the matrix are compatible with each other. If two columns are
+    compatible either one should be a subset of another, or both the columns should not share rows with 1 or the two
+    columns should be the same.
+
+    :param snip_matrix: A snip matrix where each column represents a character
+    :return: The lex sorted transposed snip matrix
+    """
     snip_matrix = np.transpose(snip_matrix)
     lex = ["".join(list(map(str, i))) for i in snip_matrix]
     sort_idx = np.argsort(lex)[::-1]
@@ -156,12 +237,24 @@ def verify_compatibility(snip_matrix: np.ndarray):
             dif_mat = snip_matrix[i] - snip_matrix[j]
             if np.sum(dif_mat) < 0:
                 if np.sum(snip_matrix[j]) != np.sum(dif_mat == -1):
-                    return None
+                    return np.ndarray([])
 
     return snip_matrix
 
 
-def perfect_phylogeny(snip_matrix):
+def perfect_phylogeny(snip_matrix: np.ndarray) -> dict:
+    """
+    The columns of the snip matrix are treated as binary vectors, then the columns are sorting into descending
+    lexicographic order from left to right. Then two children of the root are created and assign all members having
+    the column as 1 to one child and all remaining members to the other node.
+
+    Then this process is iterated, moving left to right within the columns of the snip matrix. When considering the
+    i-th column, the algorithm moves downward in the tree, at each step choosing a child v if column i is a subset of
+    the individuals contained in the subtree with the root as v.
+
+    :param snip_matrix: A snip matrix where each column represents a character
+    :return: A phylogenetic tree
+    """
     snip_matrix = np.array(snip_matrix)
     node_order = verify_compatibility(snip_matrix)
     clusters = [set([i for i in range(len(snip_matrix))])]
@@ -198,6 +291,9 @@ def perfect_phylogeny(snip_matrix):
 
 
 def augment_perfect_phylogeny(graph, snip_vector):
+    """
+    When a phylogeny graph is given with a new snip vector, travers the graph and add the snip to the proper location.
+    """
     # Should come up with a better algorithm
     parent = graph[0][0]
     children = graph[parent]
