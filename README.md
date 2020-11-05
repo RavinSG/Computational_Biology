@@ -61,5 +61,12 @@ You can find the following chapters implemented in the relevant files.
     * perfect_phylogeny - Creates a phylogeny tree based on snips
     
 * [Chapter 9](./pattern_matching.py): How Do We Locate Disease-Causing Mutations?
+    * trie_match - Finds the starting locations of the patterns located in a text
+    * aho_corasick_algorithm - Uses the Aho-Corasick algorithm to match patterns against a text
+    * longest_repeat - Finds the longest common substring occurring in two strings
+    * find_shortest_non_shared - Finds the shortest substring of string_1 that does not appear in string_2
+    * burrows_wheeler_matching - Finds the number of pattern occurrences in a string using the Burrows-Wheeler transform
+    * optimized_burrows_wheeler_matching - An optimized version of the BW matching that only used about 1.5 x |text| memory with trade offs in run time.
+    
 * [Chapter 10](./hidden_markov_models.py): Why Have Biologists Still Not Developed An HIV Vaccine? 
 * [Chapter 11](./peptide_sequence.py): Was T. Rex Just A Big Chicken?

@@ -4,7 +4,15 @@ from collections import defaultdict
 from dna_replication import hamming_distance
 
 
-def trie_construction(patterns, end_flag=''):
+def trie_construction(patterns: list, end_flag='') -> dict:
+    """
+    Creates a trie using the list of patters. The end flag is appended to each pattern to find the end points which are
+    not located in leaves.
+
+    :param patterns: A list of strings
+    :param end_flag: Special character appended to end of every string
+    :return: The created trie
+    """
     trie = dict()
     trie[0] = dict()
 
@@ -20,7 +28,7 @@ def trie_construction(patterns, end_flag=''):
     return trie
 
 
-def print_trie(trie, node, level):
+def print_trie(trie: dict, node, level: int) -> int:
     node_num = level + 1
     for child in trie[node]:
         print(f"{level}->{node_num}:{child}")
@@ -29,7 +37,14 @@ def print_trie(trie, node, level):
     return node_num
 
 
-def prefix_trie_matching(text, trie):
+def prefix_trie_matching(text: str, trie: dict) -> bool:
+    """
+    Checks a text against a trie to check whether it is present.
+
+    :param text: A sequence of characters
+    :param trie: Trie generated form the original string
+    :return: Whether the text is present or not in the trie
+    """
     node = trie[0]
     for i in range(len(text)):
         symbol = text[i]
@@ -43,7 +58,11 @@ def prefix_trie_matching(text, trie):
         return False
 
 
-def trie_match(text, trie):
+def trie_match(text: str, trie: dict):
+    """
+    Given a text and a trie created using a list of patterns, prints the starting locations of the patterns located in
+    the text.
+    """
     len_t = len(text)
     i = 0
     while i < len_t:
@@ -52,8 +71,21 @@ def trie_match(text, trie):
         i += 1
 
 
-def add_failure_edge(trie, node, string):
+def add_failure_edge(trie: dict, node: list, string: str):
+    """
+    Adds a failure edge to each node in order to remove redundant pattern matching. These extra internal links allow
+    fast transitions between failed string matches (e.g. a search for cat in a trie that does not contain cat, but
+    contains cart, and thus would fail at the node prefixed by ca), to other branches of the trie that share a common
+    prefix.
+
+    This allows the automaton to transition between string matches without the need for backtracking.
+
+    :param trie: Trie generated form the original string
+    :param node: Node the failure edge should be added to
+    :param string: String represented by the nodes upto the current node
+    """
     for i in range(1, len(string)):
+        # Check whether a pattern exists in the tree that is a suffix of the pattern responsible for the current node
         suffix = string[i:]
         parent = trie[0]
         for char in suffix:
@@ -62,12 +94,14 @@ def add_failure_edge(trie, node, string):
             else:
                 break
         else:
+            # The failure edge is noted by the -1
             if len(node) == 0:
                 node[-1] = [parent, len(string)]
             else:
                 node[-1] = parent
             break
     else:
+        # If no suffix is found backtrack to the root node
         if len(node) == 0:
             node[-1] = [trie[0], len(string)]
         else:
@@ -78,7 +112,17 @@ def add_failure_edge(trie, node, string):
             add_failure_edge(trie, node[child], string + child)
 
 
-def aho_corasick_algorithm(text, patterns, end_flag=""):
+def aho_corasick_algorithm(text: str, patterns: list, end_flag="") -> list:
+    """
+    Uses the Aho-Corasick algorithm to match the patterns instead of the searching every suffix of the text. This
+    reduces the runtime of the algorithm from,
+                        O(|text| * |longest pattern|) to O(|text| + |longest pattern| + |num matches|)
+
+    :param text: A sequence of characters
+    :param patterns: A list of strings
+    :param end_flag: Special character appended to end of every string
+    :return: The starting locations of patterns in the text
+    """
     trie = trie_construction(patterns, end_flag)
     root = trie[0]
     for child in root:
@@ -87,36 +131,47 @@ def aho_corasick_algorithm(text, patterns, end_flag=""):
 
     node = root
     i = 0
+    locations = []
     while i < len(text):
         if text[i] in node:
             node = node[text[i]]
             i += 1
         elif len(node) == 1:
             node, depth = node[-1]
-            print(i - depth)
+            locations.append(i - depth)
         else:
             if node == trie[0]:
                 i += 1
             node = node[-1]
 
     if len(node) == 1:
-        print(i - node[-1][1])
+        locations.append(i - node[-1][1])
 
-    return trie
+    return locations
 
 
-def compress_tree(tree, node, string):
+def compress_tree(trie: dict, node: dict, string: str) -> str:
+    """
+    Remove all non-branching nodes from the trie and compress consecutive nodes in a non-branching path to a single
+    node.
+
+    :param trie: Trie generated form the original string
+    :param node: Current node to be processed
+    :param string: The string of the current node
+    :return: String that represents the path from the current node to the end of the non-branching path
+    """
     if len(node) == 0:
         return string
 
+    # If the node is one-in-one-out return the current string + path
     if len(node) == 1:
         child = list(node)[0]
-        return string + compress_tree(tree, node[child], child)
+        return string + compress_tree(trie, node[child], child)
 
-    # Just return the node value if the node is branching
+    # Return the node value if the node is branching and replace the edges with the compressed branches
     mapping = {}
     for child in node:
-        mapping[child] = compress_tree(tree, node[child], child)
+        mapping[child] = compress_tree(trie, node[child], child)
 
     for i in mapping:
         value = node.pop(i)
@@ -130,7 +185,10 @@ def compress_tree(tree, node, string):
     return string
 
 
-def create_suffix_tree(text):
+def create_suffix_tree(text: str) -> dict:
+    """
+    A compressed trie created from all the suffixes in text + "special_character"
+    """
     text = text + "$"
     tree = {0: dict()}
     txt_len = len(text)
@@ -148,7 +206,18 @@ def create_suffix_tree(text):
     return tree
 
 
-def longest_repeat(node, length, sub_string, shared=False):
+def longest_repeat(node: dict, length: int, sub_string: str, shared=False) -> tuple:
+    """
+    Find the longest substring that occurs in the text responsible for the trie. The trie is traversed to find the
+    longest path that doesn't end in a leaf node. If the longest common substring occurring in two strings is to be
+    found, the colouring of the nodes are used.
+
+    :param node: Current node
+    :param length: Length of the path till the node
+    :param sub_string: Pattern spelled by the nodes in the current path
+    :param shared: If true searches for the longest repeat in two strings
+    :return: Length of the path and the string
+    """
     child_len = length
     max_str = sub_string
     if not shared:
@@ -169,7 +238,12 @@ def longest_repeat(node, length, sub_string, shared=False):
     return child_len, max_str
 
 
-def colour_tree(node):
+def colour_tree(node: dict) -> int:
+    """
+    Colours the nodes in a trie in the following manner.
+        * A node is colored blue or red if all leaves in its subtree are all blue or all red, respectively
+        * A node is colored purple if its subtree contains both blue and red leaves
+    """
     child_cols = []
     for child in node:
         if node[child] == -1:
@@ -194,7 +268,10 @@ def colour_tree(node):
         return 1
 
 
-def print_leaves(node):
+def print_leaves(node: dict):
+    """
+    Print the leaves of the trie. If a leaf contains parts from two strings only the first string is printed.
+    """
     for child in node:
         if node[child] == -1:
             if '#' in child:
@@ -203,7 +280,17 @@ def print_leaves(node):
             print_leaves(node[child])
 
 
-def extract_substrings(root, node, length, sub_string, shared_strings):
+def extract_substrings(root: dict, node: dict, length: int, sub_string: str, shared_strings: list) -> tuple:
+    """
+    Extract all the substrings shared by two strings.
+
+    :param root: Root node of the trie
+    :param node: Current node
+    :param length: Length of the current substring
+    :param sub_string: Substring upto the current node
+    :param shared_strings: All substrings found
+    :return: A tuple containing the length of the next node, longest substring, list of shared string and the next node
+    """
     child_len = length
     max_str = sub_string
     end_point = None
@@ -225,11 +312,22 @@ def extract_substrings(root, node, length, sub_string, shared_strings):
         return child_len, max_str, shared_strings, end_point
 
 
-def search_suffix_tree(node, pattern, coloured=True):
+def search_suffix_tree(node: dict, pattern: str, coloured=True) -> tuple:
+    """
+    Searches the suffix to check whether the pattern exists. If the tree is coloured, the color of the final node will
+    also be returned. The colour represents whether the pattern is found in both trees or if only in one, the respective
+    text.
+
+    :param node: Current node
+    :param pattern: Pattern to be search
+    :param coloured: If true the colour of the node will also be returned
+    :return: Whether the pattern exists and the node
+    """
     if coloured:
         if len(pattern) == 0:
             return True, node['col']
         for child in node:
+            # Since the nodes are compressed all characters should match before processing the next node
             if child[0] == pattern[0] and child != 'col' and child != 'val':
                 for i in range(min(len(child), len(pattern))):
                     if child[i] != pattern[i]:
@@ -240,7 +338,21 @@ def search_suffix_tree(node, pattern, coloured=True):
             return False, -1
 
 
-def find_shortest_non_shared(string_1, string_2):
+def find_shortest_non_shared(string_1: str, string_2: str) -> str:
+    """
+    Finds the shortest substring of string_1 that does not appear in string_2.
+
+    For a given shortest-non-shared-substring, the prefix of the string should be a common substring of both trees.
+    Therefore the shortest-non-shared-substring should be of length at max |shortest common substring| + 1.
+
+    The list of common substrings is searched first and then for each substring obtain the string of len |substring| + 1
+    For each suffix of these stings, check whether it exists in the second string. Iterate through the list and find the
+    shortest suffix that doesn't exist in the second string.
+
+    :param string_1: String 1
+    :param string_2: String 2
+    :return: Shortest substring in string 1 that doesn't exist in string 2
+    """
     tree = create_suffix_tree(string_1 + "#" + string_2)
     root = tree[0]
     sub_strings = []
@@ -251,6 +363,7 @@ def find_shortest_non_shared(string_1, string_2):
     lengths = []
     for i in sub_strings:
         lengths.append(len(i[0]))
+    # Sort the substring according to length since shorter ones have a higher chance
     lengths, sub_strings = zip(*sorted(zip(lengths, sub_strings)))
 
     checked_strings = dict()
@@ -273,14 +386,18 @@ def find_shortest_non_shared(string_1, string_2):
                 if min_len > len(sub_string):
                     min_len = len(sub_string)
                     min_sub = sub_string
-
+            # Add checked substrings to a dictionary to prevent searching them again
             checked_strings[sub_string] = tree_num
             sub_string = sub_string[1:]
 
     return min_sub
 
 
-def generate_suffix_array(text):
+def generate_suffix_array(text: str) -> list:
+    """
+    Sort all suffixes of text lexicographically, assuming that "$" comes first in the alphabet. The indices of the
+    starting locations of the sorted suffixes is the suffix array.
+    """
     suffixes = [text[x:] for x in range(len(text))]
     indices = [x for x in range(len(text))]
 
@@ -289,7 +406,10 @@ def generate_suffix_array(text):
     return indices
 
 
-def burrows_wheeler_transform(text):
+def burrows_wheeler_transform(text: str) -> tuple:
+    """
+    Returns the Burrows-Wheeler transformed text.
+    """
     indices = generate_suffix_array(text)
     transform = ""
 
@@ -299,7 +419,19 @@ def burrows_wheeler_transform(text):
     return transform, indices
 
 
-def create_mapping_matrix(first_col, last_col, reverse=False):
+def create_mapping_matrix(first_col: list, last_col: list, reverse=False) -> tuple:
+    """
+    Returns a dictionary mapping the characters in the first column to the last column on the Burrows-Wheeler
+    transformation.
+
+    The characters are stored with the position they are located in the first string, in the format of,
+    {0_a: 1_b, 1_a: 1_c, ... }
+
+    :param first_col: Sorted sequence
+    :param last_col: Burrows-Wheeler transformed text
+    :param reverse: If true the mapping is reversed
+    :return: A dictionary containing the mapping
+    """
     char_count_first = defaultdict(int)
     char_count_last = defaultdict(int)
     mapping = defaultdict(str)
@@ -319,7 +451,10 @@ def create_mapping_matrix(first_col, last_col, reverse=False):
     return mapping, char_count_first
 
 
-def inverse_burrows_wheeler(last_col):
+def inverse_burrows_wheeler(last_col: str) -> str:
+    """
+    Reproduce the original string of the Burrows-Wheeler transform.
+    """
     last_col = list(last_col)
     first_col = last_col[::]
     first_col.sort()
@@ -335,7 +470,15 @@ def inverse_burrows_wheeler(last_col):
     return string[1:] + "$"
 
 
-def burrows_wheeler_matching(last_col, patterns):
+def burrows_wheeler_matching(last_col: str, patterns: list) -> list:
+    """
+    Finds the number of pattern occurrences in a string using the Burrows-Wheeler transform and the mapping
+    dictionaries.
+
+    :param last_col: Burrows-Wheeler transformation of text
+    :param patterns: Pattern to be searched
+    :return: A list containing the positions
+    """
     last_col = list(last_col)
     first_col = last_col[::]
     first_col.sort()
@@ -345,6 +488,7 @@ def burrows_wheeler_matching(last_col, patterns):
 
     for pattern in patterns:
         pattern = pattern[::-1]
+        # Populate the starting candidates with all positions of the last letter of the pattern
         prev_candidates = [f"{x}_{pattern[0]}" for x in range(count[pattern[0]])]
         for i in range(1, len(pattern)):
             next_candidates = []
@@ -358,7 +502,11 @@ def burrows_wheeler_matching(last_col, patterns):
     return match_count
 
 
-def last_to_first_mapping(last_column):
+def last_to_first_mapping(last_column: str) -> np.ndarray:
+    """
+    Produces an array that stores the following information. Given a symbol at position i in the last column, stores its
+    position in first column.
+    """
     last_column = list(last_column)
     indices = [x for x in range(len(last_column))]
 
@@ -371,7 +519,10 @@ def last_to_first_mapping(last_column):
     return last_to_first.astype(int)
 
 
-def get_alphabet(last_col):
+def get_alphabet(last_col: str) -> dict:
+    """
+    Returns a mapping of the alphabet used in the text to an integer.
+    """
     alphabet = dict()
     letters = sorted(set(last_col))
     for i, letter in enumerate(letters):
@@ -380,7 +531,18 @@ def get_alphabet(last_col):
     return alphabet
 
 
-def count_n(last_col, alphabet=None, checkpoints=None):
+def count_n(last_col: str, alphabet: dict = None, checkpoints: int = None) -> np.ndarray:
+    """
+    Generates a matrix that stores the number of occurrences of each symbol of the alphabet in the first i positions of
+    the Burrows-Wheeler transform in the ith position of the array.
+                                        $  a  b  m  n  p  s
+    E.g: count_n("smnpbnnaaaaa$")[3] = [0, 0, 0, 1, 1, 0, 1]
+
+    :param last_col: Burrows-Wheeler transformation of text
+    :param alphabet: Alphabet of the text
+    :param checkpoints: Only the elements in indices divisible by the number will be returned
+    :return: A count matrix
+    """
     if alphabet is None:
         alphabet = get_alphabet(last_col)
 
@@ -399,7 +561,22 @@ def count_n(last_col, alphabet=None, checkpoints=None):
         return np.array(count)
 
 
-def fast_bw_matching(last_col, patterns, suffix_array=None):
+def fast_bw_matching(last_col: str, patterns: list, suffix_array: np.ndarray = None) -> tuple:
+    """
+    Uses the count array to quickly find the top and bottom indices of the next iteration, instead of going through
+    every element of the currently selected rows.
+
+    The first column is replaced with the count array and the first occurrence array (Since I'm storing the elements in
+    the dictionary with the location the first occurrence array is not needed). The top and bottom indices are
+    calculated by,
+                    top <- first_occurrence(symbol) + count(top, last_col)[symbol]
+                    bottom <- first_occurrence(symbol) + count(bottom + 1, last_col)[symbol] − 1
+
+    :param last_col: Burrows-Wheeler transformation of text
+    :param patterns: Patterns to be searched
+    :param suffix_array: If provided the locations of the patterns are returned
+    :return: An array with the number of patterns and the starting locations of the patterns
+    """
     last_to_first = last_to_first_mapping(last_col)
     alphabet = get_alphabet(last_col)
     count_symbol = count_n(last_col, alphabet)
@@ -434,17 +611,24 @@ def fast_bw_matching(last_col, patterns, suffix_array=None):
     return pattern_count, starting_indices
 
 
-def partial_suffix_array(text, c):
+def partial_suffix_array(text: str, checkpoint: int) -> dict:
+    """
+    The full suffix array is generated and then only the elements of this array that are divisible by checkpoint, are
+    stored along with their indices i.
+    """
     suffix_array = generate_suffix_array(text)
     partial_array = dict()
     for i, suffix in enumerate(suffix_array):
-        if suffix % c == 0:
+        if suffix % checkpoint == 0:
             partial_array[i] = suffix
 
     return partial_array
 
 
-def first_occurrence_array(last_col, alphabet):
+def first_occurrence_array(last_col: str, alphabet: dict) -> list:
+    """
+    Returns an array containing the first occurrence of each symbol in the sorted BW transformation.
+    """
     first_col = list(last_col)
     first_col.sort()
 
@@ -456,6 +640,10 @@ def first_occurrence_array(last_col, alphabet):
 
 
 def count_from_checkpoint(last_col, checkpoint, checkpoint_val, steps, symbol):
+    """
+    If a position is not available in the partial count array, start from the nearest previous checkpoint and count upto
+    the necessary location.
+    """
     for i in range(checkpoint, checkpoint + steps):
         if last_col[i] == symbol:
             checkpoint_val += 1
@@ -463,6 +651,21 @@ def count_from_checkpoint(last_col, checkpoint, checkpoint_val, steps, symbol):
 
 
 def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint=100, mismatches=0):
+    """
+    An optimized version of the BW matching that only used about 1.5 x |text| memory with increased run time. The only
+    artifacts stored are the text, partial suffix array, first occurrence array and the checkpoint count matrix.
+
+    This algorithm supports finding patters that match with the string with d number of mismatches. For a given pattern
+    with d mismatches with the string, if we break the pattern into d+1 chunks at least one of them should have a
+    perfect match. This is called the seed. Then using seeds the rest of the pattern is search with up to d mismatches.
+
+    :param text: Text to be searched
+    :param patterns: Patterns to be matched
+    :param alphabet: The alphabet of the text
+    :param checkpoint: Checkpoint distance
+    :param mismatches: Number of mismatches allowed
+    :return: The starting locations of the patterns
+    """
     text = text + "$"
     suffix_array = generate_suffix_array(text)
     last_col, _ = burrows_wheeler_transform(text)
@@ -478,6 +681,8 @@ def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint
         bot = len(last_col) - 1
         while len(sub_pattern) > 0:
             char = sub_pattern[0]
+            # Use the first occurrence array and the partial count matrix to find the top and bottom positions of the
+            # match
             if top % checkpoint != 0:
                 l_top = count_from_checkpoint(last_col, (top // checkpoint) * checkpoint,
                                               checkpoint_arrays[top // checkpoint][alphabet[char]], top % checkpoint,
@@ -497,6 +702,7 @@ def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint
             bot = first_char + l_bot - 1
             sub_pattern = sub_pattern[1:]
 
+            # If there are no matches bot will rise above top
             if bot < top:
                 break
         else:
@@ -512,8 +718,11 @@ def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint
             if start_indices:
                 indices += start_indices
         else:
+            # Calculate the breaking position of the pattern
             break_points = np.floor(np.linspace(0, len(pattern), mismatches + 2)).astype(int)
             checked_pos = dict()
+            # If a seed is checked against one point, the result will be the same for all matches of the same pattern
+            # that has to match the seed against that position
             candidate_pos = dict()
             for start, end in zip(break_points, break_points[1:]):
                 sub_string = pattern[start:end]
@@ -523,6 +732,8 @@ def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint
             for pos, pos_indices in candidate_pos.items():
                 for pos_index in pos_indices:
                     distance = 0
+                    # If the seed is checked on that position once, skip it. Since two seed of the same pattern could
+                    # be perfect matches
                     if pos_index in checked_pos[pos].keys():
                         continue
                     else:
@@ -535,6 +746,8 @@ def optimized_burrows_wheeler_matching(text, patterns, alphabet=None, checkpoint
                                 if str_start in checked_pos[sibling_pos]:
                                     distance = np.inf
                                     break
+                                # Once a seed is checked against a position add it to the dict to prevent duplicate
+                                # searches
                                 checked_pos[sibling_pos][str_start] = True
                                 sibling = pattern[sibling_pos[0]:sibling_pos[0] + sibling_pos[1]]
                                 string_loc = (str_start, str_start + sibling_pos[1])
