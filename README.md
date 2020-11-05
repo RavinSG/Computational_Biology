@@ -69,4 +69,9 @@ You can find the following chapters implemented in the relevant files.
     * optimized_burrows_wheeler_matching - An optimized version of the BW matching that only used about 1.5 x |text| memory with trade offs in run time.
     
 * [Chapter 10](./hidden_markov_models.py): Why Have Biologists Still Not Developed An HIV Vaccine? 
+    * viterbi_algorithm - Finds a path π that maximizes the probability of emitting the string across all paths
+    * generate_hmm_profile - Finds a transition matrix and an emission matrix given a multiple alignment
+    * align_sequence_to_profile - Finds an alignment of a sequence against a HMM profile
+    * viterbi_learning - Finds a transition matrix and an emission matrix that maximize Pr(x, π) across all hidden paths
+    
 * [Chapter 11](./peptide_sequence.py): Was T. Rex Just A Big Chicken?
